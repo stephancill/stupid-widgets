@@ -22,7 +22,7 @@ Verified on `NoFeedSocial iOS 26.3` (`6552DF1D-95CE-48E3-801F-8F80F0AA8D29`):
 - A generic WidgetKit extension runs mirrored `.scriptable` files through the existing JavaScriptCore
   bridge. Per-instance App Intent configuration allows multiple Home Screen widgets to select
   different scripts.
-- Fifteen API-conformance/AI-tool/module/bridge/runtime/persistence tests execute and pass on the
+- Sixteen API-conformance/AI-tool/module/bridge/runtime/persistence tests execute and pass on the
   preferred simulator through the Swift package's generated Xcode scheme.
 - Signed device builds persist OAuth and Scriptable `Keychain` values in Keychain Services. xtool's
   pseudo-signed simulator app receives `errSecMissingEntitlement`, so both use isolated,
@@ -105,7 +105,7 @@ Latest verification results:
 
 - xtool app build, installation, and launch: passed without compiler warnings.
 - `StupidWidgetsTests` simulator target compilation: passed.
-- Simulator-hosted `xcodebuild test`: fifteen tests passed.
+- Simulator-hosted `xcodebuild test`: sixteen tests passed.
 - Standalone `swift test` with an iOS triple builds and links, but SwiftPM then attempts to load the
   iOS test bundle in the macOS host process. Use the simulator-hosted `xcodebuild test` command.
 
@@ -183,6 +183,8 @@ no known source URL, and iCloud/app-group search roots and a populated `module.l
 - The extension loads the script selected for that widget instance, creates a fresh `JSRuntime`, sets
   `config.runsInWidget`, waits for asynchronous completion, snapshots the native widget tree into
   Sendable values, and renders it with SwiftUI.
+- Font snapshots preserve Scriptable system weight, monospaced, and italic semantics explicitly;
+  custom fonts retain their names and sizes.
 - `SelectScriptIntent` uses a dynamic `AppEntity` query over the mirrored script library. Every Home
   Screen widget instance stores its own selection, so multiple instances can run different scripts.
 - Small, medium, and large system families are registered. Accessory families remain absent.
@@ -280,8 +282,8 @@ The latest verified AI E2E sequence was:
 
 `Package.swift` separates `StupidWidgetsCore` from the small `StupidWidgetsApp` target that owns
 SwiftUI `@main`. `StupidWidgetsTests` covers generated API structure, bridge/bootstrap
-installation, top-level await, fresh-context isolation, named widget-color assignment, agent
-read/edit tools, and persistence. All fifteen tests execute through the generated Xcode scheme on the preferred simulator, so the
+installation, top-level await, fresh-context isolation, named widget-color assignment, WidgetKit
+font metadata, agent read/edit tools, and persistence. All sixteen tests execute through the generated Xcode scheme on the preferred simulator, so the
 documented command is suitable for simulator CI coverage.
 
 `tools/generate-api-spec.mjs` normalizes documented properties and instance/static Promise methods

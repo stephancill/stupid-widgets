@@ -57,11 +57,18 @@ final class RuntimeTests: XCTestCase {
     XCTAssertEqual(text?.textColor?.blue, 1)
   }
 
-  func testSystemFontCanBeReconstructedForWidgetExtension() {
-    let source = UIFont.boldSystemFont(ofSize: 16)
-    let reconstructed = UIFont(name: source.fontName, size: source.pointSize)
+  func testSystemFontMetadataIsPreservedForWidgetExtension() {
+    let source = FontModel(
+      font: UIFont.boldSystemFont(ofSize: 16), systemWeight: .bold)
+    let snapshot = ScriptWidgetFont(
+      font: source.font,
+      systemWeight: source.systemWeight.map { Double($0.rawValue) },
+      isMonospaced: source.isMonospaced,
+      isItalic: source.isItalic
+    )
 
-    XCTAssertNotNil(reconstructed)
-    XCTAssertTrue(reconstructed?.fontDescriptor.symbolicTraits.contains(.traitBold) == true)
+    XCTAssertTrue(snapshot.system)
+    XCTAssertEqual(snapshot.size, 16)
+    XCTAssertEqual(snapshot.weight, Double(UIFont.Weight.bold.rawValue))
   }
 }

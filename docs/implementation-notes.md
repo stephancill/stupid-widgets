@@ -469,11 +469,15 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
 
 ## 2026-08-15 — Home Screen widget font fidelity
 
-- Fixed WidgetKit snapshot rendering to reconstruct the captured `UIFont` by its exact PostScript
-  name and size, then bridge that font into SwiftUI. Passing UIKit's internal system font name to
-  `Font.custom` lost system weight and style information on the Home Screen.
-- Added a regression confirming a captured bold system font can be reconstructed with its bold trait
-  intact in the widget extension process.
+- Fixed WidgetKit snapshots to preserve Scriptable system font weight, monospaced, and italic
+  semantics separately from UIKit's internal font name. The extension rebuilds system fonts with
+  SwiftUI's system APIs and uses `Font.custom` only for actual custom fonts.
+- Fixed monospaced Scriptable font factories whose weight prefix previously prevented the runtime from
+  constructing a monospaced `UIFont`.
+- Added a regression confirming bold system font metadata survives into the widget snapshot. The suite
+  now contains sixteen tests.
+- Verified the existing Home Screen widget on the preferred simulator renders the title bold while
+  retaining a distinct regular-weight date line after rebuilding and reloading the extension.
 
 ---
 

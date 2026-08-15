@@ -160,18 +160,20 @@ extension JSRuntime {
     for name in all {
       registerStaticCall(type: "Font", name: name) { runtime, args in
         let size = CGFloat(runtime.double(args.first) ?? 17)
-        var font = UIFont.systemFont(ofSize: size)
-        for (label, weight) in weights where name.hasPrefix(label) {
-          font = .systemFont(ofSize: size, weight: weight)
-          break
-        }
+        let weight = weights.first { name.hasPrefix($0.key) }?.value ?? .regular
+        let isMonospaced = name.contains("Monospaced")
+        let isItalic = name == "italicSystemFont"
+        let font: UIFont
         if name == "italicSystemFont" {
           font = UIFont.italicSystemFont(ofSize: size)
-        } else if name.hasPrefix("monospaced") {
-          let weight = weights.first { name.hasPrefix($0.key) }?.value ?? .regular
+        } else if isMonospaced {
           font = UIFont.monospacedSystemFont(ofSize: size, weight: weight)
+        } else {
+          font = UIFont.systemFont(ofSize: size, weight: weight)
         }
-        return runtime.alloc(FontModel(font: font))
+        return runtime.alloc(
+          FontModel(
+            font: font, systemWeight: weight, isMonospaced: isMonospaced, isItalic: isItalic))
       }
     }
   }

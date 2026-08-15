@@ -52,11 +52,11 @@ public struct ScriptWidgetSnapshot: Sendable {
       elements: [
         .text(
           .init(
-            text: title, color: .white, fontName: nil, fontSize: 17, opacity: 1,
+            text: title, color: .white, font: .system(size: 17), opacity: 1,
             lineLimit: 2, alignment: .left)),
         .text(
           .init(
-            text: body, color: .gray, fontName: nil, fontSize: 13, opacity: 1,
+            text: body, color: .gray, font: .system(size: 13), opacity: 1,
             lineLimit: 4, alignment: .left)),
       ]
     )
@@ -87,11 +87,54 @@ public indirect enum ScriptWidgetElement: Sendable {
 public struct ScriptWidgetText: Sendable {
   public let text: String
   public let color: ScriptWidgetColor
-  public let fontName: String?
-  public let fontSize: Double
+  public let font: ScriptWidgetFont
   public let opacity: Double
   public let lineLimit: Int
   public let alignment: ScriptWidgetAlignment
+}
+
+public struct ScriptWidgetFont: Sendable {
+  public let name: String?
+  public let size: Double
+  public let weight: Double
+  public let italic: Bool
+  public let monospaced: Bool
+  public let system: Bool
+
+  public static func system(size: Double) -> ScriptWidgetFont {
+    ScriptWidgetFont(
+      name: nil, size: size, weight: 0, italic: false, monospaced: false, system: true)
+  }
+
+  @MainActor
+  public init(
+    font: UIFont?, systemWeight: Double? = nil, isMonospaced: Bool? = nil,
+    isItalic: Bool? = nil
+  ) {
+    let font = font ?? UIFont.systemFont(ofSize: 17)
+    let traits =
+      font.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any]
+    name = font.fontName
+    size = Double(font.pointSize)
+    weight =
+      systemWeight
+      ?? (traits?[.weight] as? NSNumber)?.doubleValue
+      ?? 0
+    italic = isItalic ?? font.fontDescriptor.symbolicTraits.contains(.traitItalic)
+    monospaced = isMonospaced ?? font.fontDescriptor.symbolicTraits.contains(.traitMonoSpace)
+    system = font.fontName.hasPrefix(".")
+  }
+
+  private init(
+    name: String?, size: Double, weight: Double, italic: Bool, monospaced: Bool, system: Bool
+  ) {
+    self.name = name
+    self.size = size
+    self.weight = weight
+    self.italic = italic
+    self.monospaced = monospaced
+    self.system = system
+  }
 }
 
 public struct ScriptWidgetImage: Sendable {
@@ -146,8 +189,12 @@ public enum ScriptWidgetRunner {
         .init(
           text: text.text,
           color: color(text.textColor) ?? .white,
-          fontName: text.font?.font.fontName,
-          fontSize: Double(text.font?.font.pointSize ?? 17),
+          font: ScriptWidgetFont(
+            font: text.font?.font,
+            systemWeight: text.font?.systemWeight.map { Double($0.rawValue) },
+            isMonospaced: text.font?.isMonospaced,
+            isItalic: text.font?.isItalic
+          ),
           opacity: text.textOpacity,
           lineLimit: text.lineLimit,
           alignment: alignment(text.alignment)
@@ -160,8 +207,12 @@ public enum ScriptWidgetRunner {
         .init(
           text: formatter.string(from: date.date),
           color: color(date.textColor) ?? .white,
-          fontName: date.font?.font.fontName,
-          fontSize: Double(date.font?.font.pointSize ?? 17),
+          font: ScriptWidgetFont(
+            font: date.font?.font,
+            systemWeight: date.font?.systemWeight.map { Double($0.rawValue) },
+            isMonospaced: date.font?.isMonospaced,
+            isItalic: date.font?.isItalic
+          ),
           opacity: date.textOpacity,
           lineLimit: date.lineLimit,
           alignment: alignment(date.alignment)
@@ -266,12 +317,31 @@ public struct ScriptWidgetSnapshotView: View {
   }
 
   private func font(_ text: ScriptWidgetText) -> Font {
-    if let name = text.fontName,
-      let font = UIFont(name: name, size: CGFloat(text.fontSize))
-    {
-      return Font(font)
+    if !text.font.system, let name = text.font.name {
+      let font = Font.custom(name, size: text.font.size)
+      return text.font.italic ? font.italic() : font
     }
-    return .system(size: text.fontSize)
+    var font = Font.system(
+      size: text.font.size,
+      weight: weight(text.font.weight),
+      design: text.font.monospaced ? .monospaced : .default
+    )
+    if text.font.italic { font = font.italic() }
+    return font
+  }
+
+  private func weight(_ value: Double) -> Font.Weight {
+    switch value {
+    case ..<(-0.7): .ultraLight
+    case ..<(-0.5): .thin
+    case ..<(-0.2): .light
+    case ..<0.1: .regular
+    case ..<0.265: .medium
+    case ..<0.35: .semibold
+    case ..<0.48: .bold
+    case ..<0.59: .heavy
+    default: .black
+    }
   }
 
   private func color(_ value: ScriptWidgetColor) -> Color {

@@ -65,8 +65,19 @@ final class ColorModel: JSObject {
 final class FontModel: JSObject {
   var id = 0
   let font: UIFont
+  let systemWeight: UIFont.Weight?
+  let isMonospaced: Bool
+  let isItalic: Bool
 
-  init(font: UIFont) { self.font = font }
+  init(
+    font: UIFont, systemWeight: UIFont.Weight? = nil, isMonospaced: Bool = false,
+    isItalic: Bool = false
+  ) {
+    self.font = font
+    self.systemWeight = systemWeight
+    self.isMonospaced = isMonospaced
+    self.isItalic = isItalic
+  }
 
   func jsGet(_ runtime: JSRuntime, _ name: String) -> Any? {
     switch name {
