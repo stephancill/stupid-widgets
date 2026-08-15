@@ -30,3 +30,5 @@ iOS app first, using xtool/SwiftUI with a JavaScriptCore bridge.
 2. Make changes; lint/format (project tooling if present, else oxlint/oxfmt).
 3. Update `docs/implementation-notes.md` documenting what changed and why.
 4. Commit with conventional commits (`fix:`, `feat:`, `chore:`...).
+5. Before archiving or uploading a release, increment `CFBundleVersion` in both
+   `stupid-widgets/Info.plist` and `stupid-widgets/WidgetExtension-Info.plist` to the same value.

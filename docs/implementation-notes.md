@@ -588,3 +588,14 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
 - Renamed the main navigation heading from Scripts to Widgets.
 - Set matching explicit build numbers on the app and WidgetKit extension so App Store archives do not
   inherit mismatched generated defaults.
+
+---
+
+## 2026-08-16 — Detail title editing
+
+- Made the script detail navigation title tappable and added the same Rename Script text-field alert
+  used by the main script list.
+- Title changes use the existing persistent rename path and immediately update the detail title and
+  script execution name while surfacing existing validation errors.
+- Bumped the app and WidgetKit extension together from build 3 to build 4 for TestFlight and added a
+  project rule requiring synchronized build numbers before release archives and uploads.

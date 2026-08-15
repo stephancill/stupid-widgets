@@ -171,6 +171,8 @@ struct EditorView: View {
   @State private var prompt = ""
   @State private var undoSources: [String] = []
   @State private var pendingUndoSource: String?
+  @State private var isEditingTitle = false
+  @State private var titleText = ""
 
   init(script: Script) {
     self.script = script
@@ -198,9 +200,20 @@ struct EditorView: View {
         }
       }
     }
-    .navigationTitle(script.name)
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
+      ToolbarItem(placement: .principal) {
+        Button {
+          titleText = scriptName
+          isEditingTitle = true
+        } label: {
+          Text(scriptName)
+            .font(.headline)
+            .lineLimit(1)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Edit title")
+      }
       ToolbarItem(placement: .topBarTrailing) {
         Button(showingCode ? "Preview" : "Edit") {
           showingCode.toggle()
@@ -223,6 +236,11 @@ struct EditorView: View {
       .padding(.bottom, 8)
       .background(.black.opacity(0.001))
     }
+    .alert("Rename Script", isPresented: $isEditingTitle) {
+      TextField("Name", text: $titleText)
+      Button("Cancel", role: .cancel) {}
+      Button("Rename", action: saveTitle)
+    }
     .background(
       RuntimePresentationHost(runtime: execution.runtime, presentsWidgetPreviews: false)
     )
@@ -243,6 +261,17 @@ struct EditorView: View {
     } message: {
       Text(chat.errorMessage ?? auth.errorMessage ?? "Unknown error")
     }
+    .alert(
+      "Script Error",
+      isPresented: Binding(
+        get: { store.errorMessage != nil },
+        set: { if !$0 { store.errorMessage = nil } }
+      )
+    ) {
+      Button("OK", role: .cancel) {}
+    } message: {
+      Text(store.errorMessage ?? "")
+    }
     .task {
       guard !hasRun else { return }
       hasRun = true
@@ -251,7 +280,7 @@ struct EditorView: View {
   }
 
   private func run() {
-    let runtime = execution.run(source: source, scriptName: script.name)
+    let runtime = execution.run(source: source, scriptName: scriptName)
     Task { @MainActor in
       for _ in 0..<200 where !runtime.completed {
         try? await Task.sleep(for: .milliseconds(100))
@@ -302,6 +331,17 @@ struct EditorView: View {
     guard let previousSource = undoSources.popLast() else { return }
     source = previousSource
     run()
+  }
+
+  private var scriptName: String {
+    store.script(id: script.id)?.name ?? script.name
+  }
+
+  private func saveTitle() {
+    let title = titleText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !title.isEmpty else { return }
+    store.rename(id: script.id, to: title)
+    isEditingTitle = false
   }
 }
 
