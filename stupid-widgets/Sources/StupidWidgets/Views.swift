@@ -24,37 +24,11 @@ struct ScriptListView: View {
     NavigationStack {
       List {
         ForEach(store.scripts) { script in
-          NavigationLink(value: script.id) {
-            HStack(spacing: 12) {
-              Image(systemName: iconSymbol(for: script.iconGlyph))
-                .font(.system(size: 14))
-                .foregroundStyle(.white)
-                .frame(width: 30, height: 30)
-                .background(iconColor(script.iconColor))
-                .clipShape(RoundedRectangle(cornerRadius: 7))
-              Text(script.name)
-            }
-          }
-          .swipeActions(edge: .trailing) {
-            Button(role: .destructive) {
-              store.delete(id: script.id)
-            } label: {
-              Label("Delete", systemImage: "trash")
-            }
-            Button {
-              renaming = script
-              renameText = script.name
-            } label: {
-              Label("Rename", systemImage: "pencil")
-            }
-            .tint(.blue)
-          }
-          .contextMenu {
-            ShareLink(item: script.fileURL) { Label("Export", systemImage: "square.and.arrow.up") }
-          }
+          scriptRow(script)
         }
       }
-      .navigationTitle("Scripts")
+      .contentMargins(.top, 16, for: .scrollContent)
+      .navigationTitle("Widgets")
       .navigationDestination(for: UUID.self) { id in
         if let script = store.script(id: id) {
           EditorView(script: script)
@@ -113,24 +87,53 @@ struct ScriptListView: View {
     }
   }
 
-  private func iconSymbol(for glyph: String) -> String {
-    let symbol = glyph.hasSuffix(".fill") ? String(glyph.dropLast(5)) : glyph
-    if UIImage(systemName: symbol) != nil { return symbol }
-    return "doc.text"
+  private func scriptRow(_ script: Script) -> some View {
+    NavigationLink(value: script.id) {
+      HStack(spacing: 8) {
+        Text(script.name)
+          .font(.body)
+          .lineLimit(1)
+        Spacer()
+        Text(relativeEditedTime(for: script))
+          .font(.body)
+          .foregroundStyle(.secondary)
+      }
+      .padding(.vertical, 2)
+    }
+    .swipeActions {
+      Button("Delete", role: .destructive) {
+        store.delete(id: script.id)
+      }
+    }
+    .swipeActions(edge: .leading) {
+      Button("Rename") {
+        renaming = script
+        renameText = script.name
+      }
+      .tint(.blue)
+    }
+    .contextMenu {
+      ShareLink(item: script.fileURL) {
+        Label("Export", systemImage: "square.and.arrow.up")
+      }
+    }
   }
 
-  private func iconColor(_ name: String) -> Color {
-    switch name {
-    case "red": return .red
-    case "orange": return .orange
-    case "yellow": return .yellow
-    case "green": return .green
-    case "blue": return .blue
-    case "purple": return .purple
-    case "pink": return .pink
-    case "deep-blue": return Color(red: 0.1, green: 0.2, blue: 0.5)
-    default: return .gray
-    }
+  private func relativeEditedTime(for script: Script) -> String {
+    let values = try? script.fileURL.resourceValues(forKeys: [.contentModificationDateKey])
+    guard let date = values?.contentModificationDate else { return "" }
+
+    let seconds = max(0, Int(Date().timeIntervalSince(date)))
+    if seconds < 60 { return "now" }
+    let minutes = seconds / 60
+    if minutes < 60 { return "\(minutes)m" }
+    let hours = minutes / 60
+    if hours < 24 { return "\(hours)h" }
+    let days = hours / 24
+    if days < 30 { return "\(days)d" }
+    let months = days / 30
+    if months < 12 { return "\(months)mo" }
+    return "\(months / 12)y"
   }
 }
 

@@ -574,3 +574,15 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
 - Changed the main-screen add action to collect a script name before creating any file or list entry.
 - Cancelling the naming alert now leaves the script library unchanged; confirming Create persists the
   new script with the entered name.
+
+---
+
+## 2026-08-16 — Script list styling
+
+- Matched stupid torrent's system inset list and compact row treatment, using a body-sized single-line
+  script name and a trailing abbreviated relative file-edit date.
+- Added the same effective 16-point gap between the large navigation title and first page content as
+  stupid torrent's sectioned list.
+- Matched its split swipe-action treatment with destructive Delete on the trailing edge and Rename on
+  the leading edge. Export remains available from the row context menu.
+- Renamed the main navigation heading from Scripts to Widgets.
