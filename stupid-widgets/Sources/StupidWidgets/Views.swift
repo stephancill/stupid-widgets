@@ -130,14 +130,14 @@ final class ScriptExecution: ObservableObject {
 
   init(scriptName: String) {
     let runtime = JSRuntime()
-    runtime.installScriptableAPI(scriptName: scriptName)
+    runtime.installScriptableAPI(scriptName: scriptName, runsInWidget: true)
     self.runtime = runtime
   }
 
   @discardableResult
   func run(source: String, scriptName: String) -> JSRuntime {
     let runtime = JSRuntime()
-    runtime.installScriptableAPI(scriptName: scriptName)
+    runtime.installScriptableAPI(scriptName: scriptName, runsInWidget: true)
     self.runtime = runtime
     runtime.evaluate(source)
     return runtime
@@ -178,7 +178,9 @@ struct EditorView: View {
           RuntimeConsole(runtime: execution.runtime)
         }
       } else {
-        ScriptDetailPreview(runtime: execution.runtime)
+        ScriptDetailPreview(runtime: execution.runtime) {
+          showingCode = true
+        }
       }
     }
     .navigationTitle(script.name)
@@ -398,6 +400,7 @@ private struct ChangePromptField: View {
 
 struct ScriptDetailPreview: View {
   @ObservedObject var runtime: JSRuntime
+  let onShowError: () -> Void
 
   var body: some View {
     Group {
@@ -409,9 +412,13 @@ struct ScriptDetailPreview: View {
       } else if !runtime.completed {
         ProgressView("Running script...")
       } else {
-        ContentUnavailableView(
-          "No Widget", systemImage: "rectangle.slash",
-          description: Text("This script did not produce a widget."))
+        ContentUnavailableView {
+          Label("No Widget", systemImage: "rectangle.slash")
+        } description: {
+          Text("This script did not produce a widget.")
+        } actions: {
+          Button("Show Error", action: onShowError)
+        }
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -424,20 +431,47 @@ struct RuntimeConsole: View {
 
   var body: some View {
     if !runtime.consoleLines.isEmpty {
-      ScrollView {
-        LazyVStack(alignment: .leading, spacing: 3) {
-          ForEach(Array(runtime.consoleLines.enumerated()), id: \.offset) { _, line in
-            Text(line)
-              .font(.system(size: 11, design: .monospaced))
-              .foregroundStyle(line.hasPrefix("Error") ? .red : .secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
+      VStack(spacing: 0) {
+        if let errorText {
+          HStack {
+            Text("Error")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.red)
+            Spacer()
+            Button {
+              UIPasteboard.general.string = errorText
+            } label: {
+              Label("Copy Error", systemImage: "doc.on.doc")
+            }
+            .font(.caption)
+            .buttonStyle(.borderless)
           }
+          .padding(.horizontal, 8)
+          .padding(.vertical, 6)
+
+          Divider()
         }
-        .padding(8)
+
+        ScrollView {
+          LazyVStack(alignment: .leading, spacing: 3) {
+            ForEach(Array(runtime.consoleLines.enumerated()), id: \.offset) { _, line in
+              Text(line)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(line.hasPrefix("Error") ? .red : .secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+          }
+          .padding(8)
+        }
+        .frame(maxHeight: 140)
       }
-      .frame(maxHeight: 140)
       .background(Color(uiColor: .tertiarySystemBackground))
     }
+  }
+
+  private var errorText: String? {
+    let errors = runtime.consoleLines.filter { $0.hasPrefix("Error") }
+    return errors.isEmpty ? nil : errors.joined(separator: "\n")
   }
 }
 

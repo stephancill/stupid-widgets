@@ -424,10 +424,14 @@ final class JSRuntime: ObservableObject {
     activePreview = nil
     activeTable = nil
     scriptWidget = nil
-    let finished: @convention(block) (Any?) -> Void = { [weak self] error in
+    context.setObject(
+      NSNull(), forKeyedSubscript: "__stupidWidgets_executionError" as NSString)
+    let finished: @convention(block) () -> Void = { [weak self] in
       guard let self else { return }
-      if let error, !(error is NSNull) {
-        self.consoleLines.append("Error: \(error)")
+      if let error = self.context.objectForKeyedSubscript("__stupidWidgets_executionError"),
+        !error.isNull, !error.isUndefined
+      {
+        self.consoleLines.append("Error: \(error.toString() ?? "Unknown JavaScript error")")
       }
       self.completed = true
       self.presentScriptWidgetIfNeeded()
@@ -438,12 +442,29 @@ final class JSRuntime: ObservableObject {
       ;(async function() {
       \(source)
       })().then(
-        function() { __stupidWidgets_executionFinished(null); },
-        function(error) { __stupidWidgets_executionFinished(error && (error.stack || error.message) || String(error)); }
+        function() {
+          __stupidWidgets_executionError = null;
+          __stupidWidgets_executionFinished();
+        },
+        function(error) {
+          __stupidWidgets_executionError = error && (error.message || error.stack) || String(error);
+          __stupidWidgets_executionFinished();
+        }
       );
       """
     let result = context.evaluateScript(wrapped)
     return result
+  }
+
+  func compilationError(source: String) -> String? {
+    lastException = nil
+    context.evaluateScript(
+      """
+      ;(async function() {
+      \(source)
+      });
+      """)
+    return lastException?.toString()
   }
 
   /// If a script set a widget via `Script.setWidget` and nothing was presented

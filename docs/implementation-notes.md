@@ -491,3 +491,78 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
   including beta description and per-build testing notes.
 - Completed App Store document-type metadata by marking the app as an alternate `.scriptable`
   handler that imports rather than edits files in place.
+
+---
+
+## 2026-08-15 — Agent compilation retry
+
+- Added a compile-only JavaScriptCore validation pass after every successful agent `edit_script`
+  call, using the same async-function shape as normal script execution so top-level `await` remains
+  valid.
+- Compilation failures are returned directly to the active ChatGPT tool loop with an instruction to
+  continue editing. The agent prompt now explicitly prevents completion until a subsequent edit
+  compiles.
+- Added regressions for top-level-await compilation, syntax-error detection, and recoverable
+  compilation feedback in edit-tool output.
+- Compiled the simulator test target, passed all eighteen tests on the preferred simulator, and
+  completed a green xtool app/widget build and installation.
+
+---
+
+## 2026-08-15 — Agent widget runtime validation
+
+- Diagnosed a cat-image edit that compiled but failed at runtime because CATAAS rejected the generated
+  `fit=crop` query with HTTP 400 JSON, causing `Request.loadImage()` to reject with `not an image`.
+- Added an automatic completion gate that executes the fully edited script in a fresh Scriptable
+  runtime, waits for asynchronous work, and requires error-free completion plus a widget passed to
+  `Script.setWidget`.
+- Runtime, network, decoding, timeout, and missing-widget failures are now fed back into the same
+  ChatGPT tool loop so the agent continues editing instead of leaving a broken widget.
+- Added validator regressions for thrown runtime errors, missing widgets, and successful widgets.
+- Changed asynchronous execution failure propagation to retain the JavaScript error message rather
+  than the unhelpful JavaScriptCore stack placeholder `@`, giving the agent actionable retry context.
+- Passed all twenty-one simulator tests, completed a green xtool app/widget build and installation,
+  repaired the persisted simulator script with CATAAS `fit=cover`, and verified its cat image renders
+  in the native widget preview.
+
+---
+
+## 2026-08-15 — Editor error actions
+
+- Added a `Show Error` action directly beneath the completed no-widget empty-state description. It
+  switches to the source editor, where the existing runtime console exposes the failure.
+- Added a `Copy Error` console action whenever runtime error lines are present. It copies all errors
+  while excluding ordinary console output.
+- Passed all twenty-one simulator tests and completed a green xtool app/widget build and installation.
+  Verified with a temporary failing simulator script that `Show Error` opens the editor and
+  `Copy Error` places the exact runtime failure on the pasteboard, then removed the temporary script
+  and relaunched the app.
+- Moved `Show Error` into the empty state's native action area and removed the prominent filled style.
+- Diagnosed the cat widget's transient empty state as an unawaited async `main()` call: the outer script
+  completed before image loading reached `Script.setWidget`. Updated the agent instructions to always
+  await async entry points and repaired the persisted simulator script to use `await main()`.
+
+---
+
+## 2026-08-15 — Rounded Scriptable fonts
+
+- Reproduced `Stupid.scriptable` against both live stats endpoints and traced its rendered error state
+  to the missing canonical `Font.boldRoundedSystemFont` factory.
+- Added all nine Scriptable rounded system font factories with their correct weights and preserved the
+  rounded design through WidgetKit snapshots.
+- Added a runtime regression covering `Font.boldRoundedSystemFont(30)` assignment to widget text.
+- Passed all twenty-two simulator tests, rebuilt and installed the app, and verified the unchanged
+  imported script renders live Search and RPC values on the preferred simulator.
+- Passed all twenty-one simulator tests, rebuilt and installed the app/widget bundle, and verified the
+  awaited cat widget renders successfully in both the app preview and Home Screen widget.
+
+---
+
+## 2026-08-15 — Widget-context detail execution
+
+- Fixed script details running with `config.runsInApp`, which made scripts such as `Read MacStories`
+  take their table/QuickLook branch and cover the detail with a sheet.
+- Runtime installation now accepts an explicit widget-execution mode used by detail previews, agent
+  validation, and the WidgetKit extension. Explicit app-context QuickLook and table presentation
+  behavior remains unchanged.
+- Added a regression confirming detail execution selects the widget branch rather than the app branch.

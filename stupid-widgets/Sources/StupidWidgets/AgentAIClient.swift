@@ -12,7 +12,12 @@ struct ScriptAgentToolOutput {
 }
 
 struct ScriptAgentTools {
-  static func execute(name: String, argumentsJSON: String, script: String)
+  static func execute(
+    name: String,
+    argumentsJSON: String,
+    script: String,
+    compilationError: ((String) -> String?)? = nil
+  )
     -> ScriptAgentToolOutput
   {
     guard let data = argumentsJSON.data(using: .utf8),
@@ -60,6 +65,17 @@ struct ScriptAgentTools {
       }
       var updated = script
       updated.replaceSubrange(match, with: newText)
+      if let error = compilationError?(updated) {
+        return ScriptAgentToolOutput(
+          text: jsonString([
+            "updated": true,
+            "compilation_error": error,
+            "instruction": "The script does not compile. Continue editing until it compiles.",
+          ]),
+          script: updated,
+          didUpdateScript: true
+        )
+      }
       return ScriptAgentToolOutput(
         text: jsonString(["updated": true]),
         script: updated,
@@ -99,6 +115,27 @@ struct ScriptAgentTools {
 }
 
 @MainActor
+enum ScriptAgentValidator {
+  static func widgetError(source: String, scriptName: String) async throws -> String? {
+    let runtime = JSRuntime()
+    runtime.installScriptableAPI(scriptName: scriptName, runsInWidget: true)
+    runtime.evaluate(source)
+
+    for _ in 0..<650 where !runtime.completed {
+      try await Task.sleep(for: .milliseconds(100))
+    }
+    guard runtime.completed else { return "Widget execution timed out." }
+    if let error = runtime.consoleLines.last(where: { $0.hasPrefix("Error:") }) {
+      return error
+    }
+    guard runtime.scriptWidget != nil else {
+      return "The script completed without calling Script.setWidget(widget)."
+    }
+    return nil
+  }
+}
+
+@MainActor
 struct AgentAIClient {
   let auth: OpenAIAuth
 
@@ -111,6 +148,7 @@ struct AgentAIClient {
   private struct TurnResult {
     let calls: [ToolCall]
     let reasoningItems: [[String: Any]]
+    let outputText: String
   }
 
   func chat(
@@ -123,6 +161,8 @@ struct AgentAIClient {
           let credential = try await auth.validCredential()
           var input = messageInput(messages: messages)
           var workingScript = script ?? ""
+          let validationRuntime = JSRuntime()
+          var didUpdateScript = false
 
           for _ in 0..<8 {
             let result = try await responseTurn(
@@ -130,7 +170,32 @@ struct AgentAIClient {
               input: input,
               continuation: continuation
             )
-            guard !result.calls.isEmpty else {
+            if result.calls.isEmpty {
+              if didUpdateScript,
+                let error = try await ScriptAgentValidator.widgetError(
+                  source: workingScript,
+                  scriptName: "Agent Validation"
+                )
+              {
+                input.append(contentsOf: result.reasoningItems)
+                if !result.outputText.isEmpty {
+                  input.append([
+                    "role": "assistant",
+                    "content": [["type": "output_text", "text": result.outputText]],
+                  ])
+                }
+                input.append([
+                  "role": "user",
+                  "content": [
+                    [
+                      "type": "input_text",
+                      "text":
+                        "The edited widget failed runtime validation: \(error) Continue working: inspect the relevant code, fix the failure with edit_script, and do not finish until validation succeeds.",
+                    ]
+                  ],
+                ])
+                continue
+              }
               continuation.finish()
               return
             }
@@ -146,10 +211,12 @@ struct AgentAIClient {
               let output = ScriptAgentTools.execute(
                 name: call.name,
                 argumentsJSON: call.arguments,
-                script: workingScript
+                script: workingScript,
+                compilationError: validationRuntime.compilationError
               )
               workingScript = output.script
               if output.didUpdateScript {
+                didUpdateScript = true
                 continuation.yield(.scriptUpdated(workingScript))
               }
               input.append([
@@ -196,6 +263,7 @@ struct AgentAIClient {
     var pending: [String: ToolCall] = [:]
     var calls: [ToolCall] = []
     var reasoningItems: [[String: Any]] = []
+    var outputText = ""
     responseStream: for try await line in bytes.lines {
       try Task.checkCancellation()
       guard line.hasPrefix("data:") else { continue }
@@ -212,6 +280,7 @@ struct AgentAIClient {
       switch type {
       case "response.output_text.delta":
         if let delta = event["delta"] as? String {
+          outputText += delta
           continuation.yield(.textDelta(delta))
         }
       case "response.output_item.added":
@@ -272,7 +341,7 @@ struct AgentAIClient {
       }
     }
     guard completed else { throw AIClientError.invalidResponse }
-    return TurnResult(calls: calls, reasoningItems: reasoningItems)
+    return TurnResult(calls: calls, reasoningItems: reasoningItems, outputText: outputText)
   }
 
   private func messageInput(messages: [AIChatMessage]) -> [[String: Any]] {
@@ -342,7 +411,7 @@ struct AgentAIClient {
 
   private var systemPrompt: String {
     """
-    You edit JavaScript in stupid widgets, an iOS Scriptable-compatible JavaScriptCore runtime. Inspect only relevant ranges with read_script, then make minimal exact replacements with edit_script. Never reproduce the full script in text. Keep unrelated code unchanged. Use Scriptable APIs only: ListWidget and widget elements, Request, FileManager, Data, Image, Color, Font, Alert, UITable, Notification, Keychain, Pasteboard, Device, SFSymbol, Timer, DateFormatter, QuickLook, Safari, config, args, module, importModule, console, and Script. Use Request rather than fetch. Async/await is supported. For widgets call Script.setWidget(widget) and Script.complete(). After successful edits, briefly summarize what changed.
+    You edit JavaScript in stupid widgets, an iOS Scriptable-compatible JavaScriptCore runtime. Inspect only relevant ranges with read_script, then make minimal exact replacements with edit_script. Never reproduce the full script in text. Keep unrelated code unchanged. Use Scriptable APIs only: ListWidget and widget elements, Request, FileManager, Data, Image, Color, Font, Alert, UITable, Notification, Keychain, Pasteboard, Device, SFSymbol, Timer, DateFormatter, QuickLook, Safari, config, args, module, importModule, console, and Script. Use Request rather than fetch. Async/await is supported. Always await async entry-point calls so script execution does not finish before the widget is ready. For widgets call Script.setWidget(widget) and Script.complete(). If edit_script reports compilation_error or widget runtime validation reports a failure, do not finish: inspect the affected code and continue editing until validation succeeds. After successful edits, briefly summarize what changed.
     """
   }
 }

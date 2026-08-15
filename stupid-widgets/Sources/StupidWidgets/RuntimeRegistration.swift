@@ -16,13 +16,13 @@ extension JSRuntime {
 
   // MARK: - Full install
 
-  func installScriptableAPI(scriptName: String) {
+  func installScriptableAPI(scriptName: String, runsInWidget: Bool = false) {
     installValueClasses()
     installWidgetClasses()
     installSystemClasses()
     installNetworkClasses()
     installUIClasses()
-    installGlobals(scriptName: scriptName)
+    installGlobals(scriptName: scriptName, runsInWidget: runsInWidget)
   }
 
   // MARK: - Value classes
@@ -162,18 +162,26 @@ extension JSRuntime {
         let size = CGFloat(runtime.double(args.first) ?? 17)
         let weight = weights.first { name.hasPrefix($0.key) }?.value ?? .regular
         let isMonospaced = name.contains("Monospaced")
+        let isRounded = name.contains("Rounded")
         let isItalic = name == "italicSystemFont"
         let font: UIFont
         if name == "italicSystemFont" {
           font = UIFont.italicSystemFont(ofSize: size)
         } else if isMonospaced {
           font = UIFont.monospacedSystemFont(ofSize: size, weight: weight)
+        } else if isRounded {
+          let base = UIFont.systemFont(ofSize: size, weight: weight)
+          font =
+            base.fontDescriptor.withDesign(.rounded).map {
+              UIFont(descriptor: $0, size: size)
+            } ?? base
         } else {
           font = UIFont.systemFont(ofSize: size, weight: weight)
         }
         return runtime.alloc(
           FontModel(
-            font: font, systemWeight: weight, isMonospaced: isMonospaced, isItalic: isItalic))
+            font: font, systemWeight: weight, isMonospaced: isMonospaced,
+            isRounded: isRounded, isItalic: isItalic))
       }
     }
   }
@@ -672,11 +680,11 @@ extension JSRuntime {
 
   // MARK: - Globals
 
-  private func installGlobals(scriptName: String) {
+  private func installGlobals(scriptName: String, runsInWidget: Bool) {
     // config
     let config = context.evaluateScript("({})")!
-    config.setObject(true, forKeyedSubscript: "runsInApp" as NSString)
-    config.setObject(false, forKeyedSubscript: "runsInWidget" as NSString)
+    config.setObject(!runsInWidget, forKeyedSubscript: "runsInApp" as NSString)
+    config.setObject(runsInWidget, forKeyedSubscript: "runsInWidget" as NSString)
     config.setObject(false, forKeyedSubscript: "runsWithSiri" as NSString)
     config.setObject("medium", forKeyedSubscript: "widgetFamily" as NSString)
     config.setObject(NSNull(), forKeyedSubscript: "widget" as NSString)
@@ -872,5 +880,8 @@ extension FontModel {
     "ultraLightMonospacedSystemFont", "thinMonospacedSystemFont", "lightMonospacedSystemFont",
     "regularMonospacedSystemFont", "mediumMonospacedSystemFont", "semiboldMonospacedSystemFont",
     "boldMonospacedSystemFont", "heavyMonospacedSystemFont", "blackMonospacedSystemFont",
+    "ultraLightRoundedSystemFont", "thinRoundedSystemFont", "lightRoundedSystemFont",
+    "regularRoundedSystemFont", "mediumRoundedSystemFont", "semiboldRoundedSystemFont",
+    "boldRoundedSystemFont", "heavyRoundedSystemFont", "blackRoundedSystemFont",
   ]
 }

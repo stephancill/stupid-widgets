@@ -27,6 +27,13 @@ final class RuntimeTests: XCTestCase {
     XCTAssertEqual(runtime.consoleLines, ["ASYNC_OK"])
   }
 
+  func testCompilationCheckSupportsTopLevelAwaitAndReportsSyntaxErrors() {
+    let runtime = JSRuntime()
+
+    XCTAssertNil(runtime.compilationError(source: "await Promise.resolve()"))
+    XCTAssertNotNil(runtime.compilationError(source: "const value ="))
+  }
+
   func testFreshRuntimesIsolateLexicalDeclarations() {
     let first = JSRuntime()
     first.installScriptableAPI(scriptName: "Test")
@@ -37,6 +44,25 @@ final class RuntimeTests: XCTestCase {
     second.evaluate("let value = 2; console.log(value)")
 
     XCTAssertFalse(second.consoleLines.contains { $0.contains("already been declared") })
+  }
+
+  func testDetailExecutionUsesWidgetContext() {
+    let execution = ScriptExecution(scriptName: "Test")
+    let runtime = execution.run(
+      source: """
+        if (config.runsInWidget && !config.runsInApp) {
+          let widget = new ListWidget()
+          Script.setWidget(widget)
+        } else {
+          QuickLook.present("App result")
+        }
+        Script.complete()
+        """,
+      scriptName: "Test"
+    )
+
+    XCTAssertNotNil(runtime.scriptWidget)
+    XCTAssertNil(runtime.activeTable)
   }
 
   func testNamedColorAppliesToWidgetText() {
@@ -55,6 +81,24 @@ final class RuntimeTests: XCTestCase {
     XCTAssertEqual(text?.textColor?.red, 0)
     XCTAssertEqual(text?.textColor?.green, 0.478)
     XCTAssertEqual(text?.textColor?.blue, 1)
+  }
+
+  func testRoundedSystemFontAppliesToWidgetText() {
+    let runtime = JSRuntime()
+    runtime.installScriptableAPI(scriptName: "Test")
+    runtime.evaluate(
+      """
+      let widget = new ListWidget()
+      let text = widget.addText("123k")
+      text.font = Font.boldRoundedSystemFont(30)
+      Script.setWidget(widget)
+      Script.complete()
+      """)
+
+    let text = runtime.scriptWidget?.children.first as? WidgetTextModel
+    XCTAssertEqual(text?.font?.font.pointSize, 30)
+    XCTAssertEqual(text?.font?.systemWeight, .bold)
+    XCTAssertTrue(text?.font?.isRounded == true)
   }
 
   func testSystemFontMetadataIsPreservedForWidgetExtension() {

@@ -2,6 +2,7 @@ import XCTest
 
 @testable import StupidWidgetsCore
 
+@MainActor
 final class ScriptAgentToolsTests: XCTestCase {
   func testReadScriptReturnsBoundedNumberedLines() {
     let result = ScriptAgentTools.execute(
@@ -35,5 +36,54 @@ final class ScriptAgentToolsTests: XCTestCase {
 
     XCTAssertFalse(result.didUpdateScript)
     XCTAssertTrue(result.text.contains("found 2"))
+  }
+
+  func testEditScriptReturnsCompilationFailureForAgentRetry() {
+    let result = ScriptAgentTools.execute(
+      name: "edit_script",
+      argumentsJSON: #"{"old_text":"const value = 1","new_text":"const value ="}"#,
+      script: "const value = 1",
+      compilationError: { _ in "SyntaxError: Unexpected token '}'" }
+    )
+
+    XCTAssertTrue(result.didUpdateScript)
+    XCTAssertEqual(result.script, "const value =")
+    XCTAssertTrue(result.text.contains("compilation_error"))
+    XCTAssertTrue(result.text.contains("Continue editing"))
+  }
+
+  func testWidgetValidationReportsRuntimeFailure() async throws {
+    let error = try await ScriptAgentValidator.widgetError(
+      source: "throw new Error('broken widget')",
+      scriptName: "Test"
+    )
+
+    XCTAssertTrue(
+      error?.contains("broken widget") == true,
+      "Expected the runtime message, received \(error ?? "nil")"
+    )
+  }
+
+  func testWidgetValidationRequiresAWidget() async throws {
+    let error = try await ScriptAgentValidator.widgetError(
+      source: "console.log('done')",
+      scriptName: "Test"
+    )
+
+    XCTAssertEqual(error, "The script completed without calling Script.setWidget(widget).")
+  }
+
+  func testWidgetValidationAcceptsSuccessfulWidget() async throws {
+    let error = try await ScriptAgentValidator.widgetError(
+      source: """
+        const widget = new ListWidget()
+        widget.addText("Hello")
+        Script.setWidget(widget)
+        Script.complete()
+        """,
+      scriptName: "Test"
+    )
+
+    XCTAssertNil(error)
   }
 }

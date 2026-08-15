@@ -67,15 +67,17 @@ final class FontModel: JSObject {
   let font: UIFont
   let systemWeight: UIFont.Weight?
   let isMonospaced: Bool
+  let isRounded: Bool
   let isItalic: Bool
 
   init(
     font: UIFont, systemWeight: UIFont.Weight? = nil, isMonospaced: Bool = false,
-    isItalic: Bool = false
+    isRounded: Bool = false, isItalic: Bool = false
   ) {
     self.font = font
     self.systemWeight = systemWeight
     self.isMonospaced = isMonospaced
+    self.isRounded = isRounded
     self.isItalic = isItalic
   }
 

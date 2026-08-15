@@ -99,17 +99,19 @@ public struct ScriptWidgetFont: Sendable {
   public let weight: Double
   public let italic: Bool
   public let monospaced: Bool
+  public let rounded: Bool
   public let system: Bool
 
   public static func system(size: Double) -> ScriptWidgetFont {
     ScriptWidgetFont(
-      name: nil, size: size, weight: 0, italic: false, monospaced: false, system: true)
+      name: nil, size: size, weight: 0, italic: false, monospaced: false, rounded: false,
+      system: true)
   }
 
   @MainActor
   public init(
     font: UIFont?, systemWeight: Double? = nil, isMonospaced: Bool? = nil,
-    isItalic: Bool? = nil
+    isRounded: Bool? = nil, isItalic: Bool? = nil
   ) {
     let font = font ?? UIFont.systemFont(ofSize: 17)
     let traits =
@@ -122,17 +124,20 @@ public struct ScriptWidgetFont: Sendable {
       ?? 0
     italic = isItalic ?? font.fontDescriptor.symbolicTraits.contains(.traitItalic)
     monospaced = isMonospaced ?? font.fontDescriptor.symbolicTraits.contains(.traitMonoSpace)
+    rounded = isRounded ?? font.fontName.contains("Rounded")
     system = font.fontName.hasPrefix(".")
   }
 
   private init(
-    name: String?, size: Double, weight: Double, italic: Bool, monospaced: Bool, system: Bool
+    name: String?, size: Double, weight: Double, italic: Bool, monospaced: Bool, rounded: Bool,
+    system: Bool
   ) {
     self.name = name
     self.size = size
     self.weight = weight
     self.italic = italic
     self.monospaced = monospaced
+    self.rounded = rounded
     self.system = system
   }
 }
@@ -156,8 +161,7 @@ public enum ScriptWidgetRunner {
   @MainActor
   public static func run(script: SharedWidgetScript) async -> ScriptWidgetSnapshot {
     let runtime = JSRuntime()
-    runtime.installScriptableAPI(scriptName: script.name)
-    runtime.context.evaluateScript("config.runsInApp = false; config.runsInWidget = true")
+    runtime.installScriptableAPI(scriptName: script.name, runsInWidget: true)
     runtime.evaluate(script.script)
 
     for _ in 0..<200 where !runtime.completed {
@@ -193,6 +197,7 @@ public enum ScriptWidgetRunner {
             font: text.font?.font,
             systemWeight: text.font?.systemWeight.map { Double($0.rawValue) },
             isMonospaced: text.font?.isMonospaced,
+            isRounded: text.font?.isRounded,
             isItalic: text.font?.isItalic
           ),
           opacity: text.textOpacity,
@@ -211,6 +216,7 @@ public enum ScriptWidgetRunner {
             font: date.font?.font,
             systemWeight: date.font?.systemWeight.map { Double($0.rawValue) },
             isMonospaced: date.font?.isMonospaced,
+            isRounded: date.font?.isRounded,
             isItalic: date.font?.isItalic
           ),
           opacity: date.textOpacity,
@@ -324,7 +330,7 @@ public struct ScriptWidgetSnapshotView: View {
     var font = Font.system(
       size: text.font.size,
       weight: weight(text.font.weight),
-      design: text.font.monospaced ? .monospaced : .default
+      design: text.font.monospaced ? .monospaced : (text.font.rounded ? .rounded : .default)
     )
     if text.font.italic { font = font.italic() }
     return font
