@@ -489,3 +489,5 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
   compliance from blocking TestFlight processing.
 - Added ignored project-local release configuration for the main app and WidgetKit extension,
   including beta description and per-build testing notes.
+- Completed App Store document-type metadata by marking the app as an alternate `.scriptable`
+  handler that imports rather than edits files in place.
