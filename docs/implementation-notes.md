@@ -586,3 +586,5 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
 - Matched its split swipe-action treatment with destructive Delete on the trailing edge and Rename on
   the leading edge. Export remains available from the row context menu.
 - Renamed the main navigation heading from Scripts to Widgets.
+- Set matching explicit build numbers on the app and WidgetKit extension so App Store archives do not
+  inherit mismatched generated defaults.
