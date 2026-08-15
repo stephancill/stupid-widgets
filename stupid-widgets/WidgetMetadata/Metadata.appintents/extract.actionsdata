@@ -1,0 +1,95 @@
+{
+  "actions": {
+    "SelectScriptIntent": {
+      "assistantDefinedSchemaTraits": [],
+      "assistantDefinedSchemas": [],
+      "authenticationPolicy": 0,
+      "availabilityAnnotations": { "LNPlatformNameWildcard": { "introducedVersion": "*" } },
+      "descriptionMetadata": {
+        "descriptionText": { "alternatives": [], "key": "Choose the script this widget instance runs." },
+        "searchKeywords": []
+      },
+      "effectiveBundleIdentifiers": [],
+      "fullyQualifiedTypeName": "StupidWidgetsWidgetExtension.SelectScriptIntent",
+      "identifier": "SelectScriptIntent",
+      "isAuthPolExplicit": false,
+      "isDiscoverable": false,
+      "mangledTypeName": "28StupidWidgetsWidgetExtension18SelectScriptIntentV",
+      "mangledTypeNameByBundleIdentifier": {},
+      "mangledTypeNameByBundleIdentifierV2": {},
+      "mangledTypeNameV2": "28StupidWidgetsWidgetExtension18SelectScriptIntentV",
+      "openAppWhenRun": false,
+      "outputFlags": 8,
+      "parameters": [
+        {
+          "capabilities": 0,
+          "dynamicOptionsSupport": 1,
+          "inputConnectionBehavior": 0,
+          "isInput": false,
+          "isOptional": true,
+          "name": "script",
+          "resolvableInputTypes": [],
+          "title": { "alternatives": [], "key": "Script" },
+          "typeSpecificMetadata": [],
+          "valueType": { "entity": { "wrapper": { "typeName": "ScriptEntity" } } }
+        }
+      ],
+      "presentationStyle": 0,
+      "requiredCapabilities": [],
+      "supportedModes": 1,
+      "systemProtocolMetadata": ["com.apple.link.systemProtocol.WidgetConfiguration", { "empty": {} }],
+      "systemProtocolMetadataV2": ["com.apple.link.systemProtocol.WidgetConfiguration", { "empty": {} }],
+      "systemProtocols": ["com.apple.link.systemProtocol.WidgetConfiguration"],
+      "title": { "alternatives": [], "key": "Select Script" },
+      "typeSpecificMetadata": [],
+      "visibilityMetadata": { "assistantOnly": false, "isDiscoverable": true }
+    }
+  },
+  "assistantEntities": [],
+  "assistantIntentNegativePhrases": [],
+  "assistantIntents": [],
+  "autoShortcuts": [],
+  "entities": {
+    "ScriptEntity": {
+      "assistantDefinedSchemas": [],
+      "availabilityAnnotations": { "LNPlatformNameWildcard": { "introducedVersion": "*" } },
+      "defaultQueryIdentifier": "StupidWidgetsWidgetExtension.ScriptQuery",
+      "displayTypeName": { "alternatives": [], "key": "Script" },
+      "effectiveBundleIdentifiers": [],
+      "fullyQualifiedTypeName": "StupidWidgetsWidgetExtension.ScriptEntity",
+      "mangledTypeName": "28StupidWidgetsWidgetExtension12ScriptEntityV",
+      "mangledTypeNameByBundleIdentifier": {},
+      "numericFormatTypeName": { "alternatives": [], "key": "Script" },
+      "properties": [],
+      "requiredCapabilities": [],
+      "systemProtocolMetadata": [],
+      "systemProtocolMetadataV2": [],
+      "transient": false,
+      "typeName": "ScriptEntity",
+      "visibilityMetadata": { "assistantOnly": false, "isDiscoverable": true }
+    }
+  },
+  "enums": [],
+  "generator": { "name": "xcode-tools", "version": "17B100" },
+  "negativePhrases": [],
+  "queries": {
+    "ScriptQuery": {
+      "availabilityAnnotations": { "LNPlatformNameWildcard": { "introducedVersion": "*" } },
+      "capabilities": 2,
+      "defaultQueryForEntity": true,
+      "effectiveBundleIdentifiers": [],
+      "entityType": "ScriptEntity",
+      "fullyQualifiedIdentifier": "StupidWidgetsWidgetExtension.ScriptQuery",
+      "identifier": "ScriptQuery",
+      "mangledTypeName": "28StupidWidgetsWidgetExtension11ScriptQueryV",
+      "mangledTypeNameByBundleIdentifier": {},
+      "parameters": [],
+      "queryType": "ScriptQuery",
+      "resultValueType": { "entity": { "wrapper": { "typeName": "ScriptEntity" } } },
+      "sortingOptions": [],
+      "visibilityMetadata": { "assistantOnly": false, "isDiscoverable": true }
+    }
+  },
+  "shortcutTileColor": 14,
+  "version": 1
+}

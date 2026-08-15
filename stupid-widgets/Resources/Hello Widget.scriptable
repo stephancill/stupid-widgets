@@ -1,0 +1,7 @@
+{
+  "name": "Hello Widget",
+  "icon": { "color": "purple", "glyph": "sun" },
+  "script": "// A simple widget that shows the date and time.\nlet widget = new ListWidget()\nwidget.backgroundColor = new Color(\"#1b1b2f\")\nlet gradient = new LinearGradient()\ngradient.colors = [new Color(\"#16222A\"), new Color(\"#3A6073\")]\ngradient.locations = [0, 1]\nwidget.backgroundGradient = gradient\n\nlet title = widget.addText(\"Hello, stupid widgets!\")\ntitle.font = Font.boldSystemFont(16)\ntitle.textColor = Color.white()\n\nwidget.addSpacer(8)\n\nlet dateText = widget.addDate(new Date())\ndateText.font = Font.mediumSystemFont(13)\ndateText.textColor = Color.white()\ndateText.textOpacity = 0.85\ndateText.applyTimeStyle()\n\ndateText.applyDateStyle()\n\nwidget.url = \"https://github.com/stupid-widgets\"\nScript.setWidget(widget)\nScript.complete()\n",
+  "always_run_in_app": true,
+  "share_sheet_inputs": []
+}
