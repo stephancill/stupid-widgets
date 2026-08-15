@@ -566,3 +566,11 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
   validation, and the WidgetKit extension. Explicit app-context QuickLook and table presentation
   behavior remains unchanged.
 - Added a regression confirming detail execution selects the widget branch rather than the app branch.
+
+---
+
+## 2026-08-15 — Confirmed script creation
+
+- Changed the main-screen add action to collect a script name before creating any file or list entry.
+- Cancelling the naming alert now leaves the script library unchanged; confirming Create persists the
+  new script with the entered name.

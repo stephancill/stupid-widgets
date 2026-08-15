@@ -16,6 +16,7 @@ public struct StupidWidgetsRootView: View {
 
 struct ScriptListView: View {
   @EnvironmentObject private var store: ScriptStore
+  @State private var isCreating = false
   @State private var renaming: Script?
   @State private var renameText = ""
 
@@ -64,26 +65,37 @@ struct ScriptListView: View {
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
           Button {
-            if let script = store.create() {
-              renaming = script
-              renameText = script.name
-            }
+            renameText = "Untitled Script"
+            isCreating = true
           } label: {
             Image(systemName: "plus")
           }
         }
       }
       .alert(
-        "Rename Script",
+        isCreating ? "New Script" : "Rename Script",
         isPresented: Binding(
-          get: { renaming != nil },
-          set: { if !$0 { renaming = nil } }
+          get: { isCreating || renaming != nil },
+          set: {
+            if !$0 {
+              isCreating = false
+              renaming = nil
+            }
+          }
         )
       ) {
         TextField("Name", text: $renameText)
-        Button("Cancel", role: .cancel) { renaming = nil }
-        Button("Rename") {
-          if let script = renaming { store.rename(id: script.id, to: renameText) }
+        Button("Cancel", role: .cancel) {
+          isCreating = false
+          renaming = nil
+        }
+        Button(isCreating ? "Create" : "Rename") {
+          if isCreating {
+            store.create(name: renameText)
+          } else if let script = renaming {
+            store.rename(id: script.id, to: renameText)
+          }
+          isCreating = false
           renaming = nil
         }
       }
