@@ -634,3 +634,11 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
 - Prepopulated new widget names with `Untitled Widget`, focused the field on presentation, and selected
   the complete default name so typing immediately replaces it.
 - Bumped the app and WidgetKit extension together from build 4 to build 5 for TestFlight.
+
+---
+
+## 2026-08-16 — Widget HTTP requests
+
+- Added the app's Scriptable-compatible arbitrary-load transport policy to the WidgetKit extension.
+  Plain HTTP requests now use the same ATS policy in Home Screen widgets as they do in app previews.
+- Bumped the app and WidgetKit extension together from build 5 to build 6 for TestFlight.
