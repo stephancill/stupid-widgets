@@ -41,6 +41,7 @@ public struct SharedWidgetScript: Decodable, Sendable {
 public struct ScriptWidgetSnapshot: Sendable {
   public let background: ScriptWidgetBackground
   public let spacing: Double
+  public let padding: ScriptWidgetInsets
   public let refreshAfterDate: Date?
   public let elements: [ScriptWidgetElement]
 
@@ -49,19 +50,27 @@ public struct ScriptWidgetSnapshot: Sendable {
       background: .color(
         ScriptWidgetColor(red: 0.08, green: 0.09, blue: 0.11, alpha: 1)),
       spacing: 8,
+      padding: .init(top: 14, leading: 14, bottom: 14, trailing: 14),
       refreshAfterDate: nil,
       elements: [
         .text(
           .init(
             text: title, color: .white, font: .system(size: 17), opacity: 1,
-            lineLimit: 2, alignment: .left)),
+            lineLimit: 2, minimumScaleFactor: 1, alignment: .left)),
         .text(
           .init(
             text: body, color: .gray, font: .system(size: 13), opacity: 1,
-            lineLimit: 4, alignment: .left)),
+            lineLimit: 4, minimumScaleFactor: 1, alignment: .left)),
       ]
     )
   }
+}
+
+public struct ScriptWidgetInsets: Sendable {
+  public let top: Double
+  public let leading: Double
+  public let bottom: Double
+  public let trailing: Double
 }
 
 public enum ScriptWidgetBackground: Sendable {
@@ -105,6 +114,7 @@ public struct ScriptWidgetText: Sendable {
   public let font: ScriptWidgetFont
   public let opacity: Double
   public let lineLimit: Int
+  public let minimumScaleFactor: Double
   public let alignment: ScriptWidgetAlignment
 }
 
@@ -174,9 +184,12 @@ public struct ScriptWidgetStack: Sendable {
 
 public enum ScriptWidgetRunner {
   @MainActor
-  public static func run(script: SharedWidgetScript) async -> ScriptWidgetSnapshot {
+  public static func run(
+    script: SharedWidgetScript, family: String = "medium"
+  ) async -> ScriptWidgetSnapshot {
     let runtime = JSRuntime()
-    runtime.installScriptableAPI(scriptName: script.name, runsInWidget: true)
+    runtime.installScriptableAPI(
+      scriptName: script.name, runsInWidget: true, widgetFamily: family)
     runtime.evaluate(script.script)
 
     for _ in 0..<200 where !runtime.completed {
@@ -194,8 +207,22 @@ public enum ScriptWidgetRunner {
     ScriptWidgetSnapshot(
       background: background(widget),
       spacing: widget.spacing,
+      padding: padding(widget),
       refreshAfterDate: widget.refreshAfterDate,
       elements: widget.children.compactMap(element)
+    )
+  }
+
+  @MainActor
+  private static func padding(_ widget: ListWidgetModel) -> ScriptWidgetInsets {
+    guard let padding = widget.padding else {
+      return ScriptWidgetInsets(top: 14, leading: 14, bottom: 14, trailing: 14)
+    }
+    return ScriptWidgetInsets(
+      top: padding.top,
+      leading: padding.leading,
+      bottom: padding.bottom,
+      trailing: padding.trailing
     )
   }
 
@@ -234,6 +261,7 @@ public enum ScriptWidgetRunner {
           ),
           opacity: text.textOpacity,
           lineLimit: text.lineLimit,
+          minimumScaleFactor: text.minimumScaleFactor,
           alignment: alignment(text.alignment)
         ))
     case let date as WidgetDateModel:
@@ -253,6 +281,7 @@ public enum ScriptWidgetRunner {
           ),
           opacity: date.textOpacity,
           lineLimit: date.lineLimit,
+          minimumScaleFactor: date.minimumScaleFactor,
           alignment: alignment(date.alignment)
         ))
     case let image as WidgetImageModel:
@@ -307,12 +336,15 @@ public struct ScriptWidgetSnapshotView: View {
   public var body: some View {
     ZStack {
       background
-      VStack(spacing: snapshot.spacing) {
+      VStack(alignment: .leading, spacing: snapshot.spacing) {
         ForEach(Array(snapshot.elements.enumerated()), id: \.offset) { _, element in
-          elementView(element)
+          elementView(element, parentAxis: .vertical)
         }
       }
-      .padding(14)
+      .padding(.top, snapshot.padding.top)
+      .padding(.leading, snapshot.padding.leading)
+      .padding(.bottom, snapshot.padding.bottom)
+      .padding(.trailing, snapshot.padding.trailing)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
@@ -340,40 +372,55 @@ public struct ScriptWidgetSnapshotView: View {
       })
   }
 
-  private func elementView(_ element: ScriptWidgetElement) -> AnyView {
+  private func elementView(_ element: ScriptWidgetElement, parentAxis: Axis) -> AnyView {
     switch element {
     case .text(let text):
+      let view = Text(text.text)
+        .font(font(text))
+        .foregroundStyle(color(text.color))
+        .opacity(text.opacity)
+        .lineLimit(text.lineLimit > 0 ? text.lineLimit : nil)
+        .minimumScaleFactor(text.minimumScaleFactor)
+      guard parentAxis == .vertical else { return AnyView(view) }
       return AnyView(
-        Text(text.text)
-          .font(font(text))
-          .foregroundStyle(color(text.color))
-          .opacity(text.opacity)
-          .lineLimit(text.lineLimit > 0 ? text.lineLimit : nil)
-          .frame(maxWidth: .infinity, alignment: frameAlignment(text.alignment))
-      )
+        view.frame(maxWidth: .infinity, alignment: frameAlignment(text.alignment)))
     case .image(let image):
       guard let uiImage = UIImage(data: image.data) else { return AnyView(EmptyView()) }
       let width = image.width.map { CGFloat($0) }
       let height = image.height.map { CGFloat($0) }
+      let view = Image(uiImage: uiImage)
+        .resizable()
+        .scaledToFit()
+        .frame(width: width, height: height)
+        .opacity(image.opacity)
+        .clipShape(RoundedRectangle(cornerRadius: image.cornerRadius))
+      guard parentAxis == .vertical else { return AnyView(view) }
       return AnyView(
-        Image(uiImage: uiImage)
-          .resizable()
-          .scaledToFit()
-          .frame(width: width, height: height)
-          .opacity(image.opacity)
-          .clipShape(RoundedRectangle(cornerRadius: image.cornerRadius))
-          .frame(maxWidth: .infinity, alignment: frameAlignment(image.alignment))
+        view.frame(maxWidth: .infinity, alignment: frameAlignment(image.alignment))
       )
     case .spacer(let length):
-      return length > 0
-        ? AnyView(Spacer().frame(height: length)) : AnyView(Spacer(minLength: 0))
+      guard length > 0 else { return AnyView(Spacer(minLength: 0)) }
+      return parentAxis == .horizontal
+        ? AnyView(Spacer().frame(width: length)) : AnyView(Spacer().frame(height: length))
     case .stack(let stack):
-      let content = ForEach(Array(stack.elements.enumerated()), id: \.offset) { _, element in
-        elementView(element)
+      let view: AnyView
+      if stack.horizontal {
+        view = AnyView(
+          HStack(spacing: stack.spacing) {
+            ForEach(Array(stack.elements.enumerated()), id: \.offset) { _, element in
+              elementView(element, parentAxis: .horizontal)
+            }
+          })
+      } else {
+        view = AnyView(
+          VStack(alignment: .leading, spacing: stack.spacing) {
+            ForEach(Array(stack.elements.enumerated()), id: \.offset) { _, element in
+              elementView(element, parentAxis: .vertical)
+            }
+          })
       }
-      return stack.horizontal
-        ? AnyView(HStack(spacing: stack.spacing) { content })
-        : AnyView(VStack(spacing: stack.spacing) { content })
+      guard parentAxis == .vertical else { return view }
+      return AnyView(view.frame(maxWidth: .infinity, alignment: .leading))
     }
   }
 

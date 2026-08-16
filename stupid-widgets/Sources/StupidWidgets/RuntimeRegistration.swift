@@ -16,13 +16,16 @@ extension JSRuntime {
 
   // MARK: - Full install
 
-  func installScriptableAPI(scriptName: String, runsInWidget: Bool = false) {
+  func installScriptableAPI(
+    scriptName: String, runsInWidget: Bool = false, widgetFamily: String = "medium"
+  ) {
+    self.widgetFamily = widgetFamily
     installValueClasses()
     installWidgetClasses()
     installSystemClasses()
     installNetworkClasses()
     installUIClasses()
-    installGlobals(scriptName: scriptName, runsInWidget: runsInWidget)
+    installGlobals(scriptName: scriptName, runsInWidget: runsInWidget, widgetFamily: widgetFamily)
   }
 
   // MARK: - Value classes
@@ -205,7 +208,11 @@ extension JSRuntime {
           "presentSmall", "presentMedium", "presentLarge", "presentExtraLarge",
           "presentAccessoryInline", "presentAccessoryCircular", "presentAccessoryRectangular",
         ]
-      ) { _, _ in ListWidgetModel() })
+      ) { runtime, _ in
+        let widget = ListWidgetModel()
+        widget.previewFamily = runtime.widgetFamily
+        return widget
+      })
 
     register(
       JSClassSpec(
@@ -683,13 +690,13 @@ extension JSRuntime {
 
   // MARK: - Globals
 
-  private func installGlobals(scriptName: String, runsInWidget: Bool) {
+  private func installGlobals(scriptName: String, runsInWidget: Bool, widgetFamily: String) {
     // config
     let config = context.evaluateScript("({})")!
     config.setObject(!runsInWidget, forKeyedSubscript: "runsInApp" as NSString)
     config.setObject(runsInWidget, forKeyedSubscript: "runsInWidget" as NSString)
     config.setObject(false, forKeyedSubscript: "runsWithSiri" as NSString)
-    config.setObject("medium", forKeyedSubscript: "widgetFamily" as NSString)
+    config.setObject(widgetFamily, forKeyedSubscript: "widgetFamily" as NSString)
     config.setObject(NSNull(), forKeyedSubscript: "widget" as NSString)
     context.setObject(config, forKeyedSubscript: "config" as NSString)
 

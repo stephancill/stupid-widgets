@@ -77,6 +77,23 @@ final class RuntimeTests: XCTestCase {
     XCTAssertNotNil(second.scriptWidget)
   }
 
+  func testWidgetFamilyIsAvailableToScriptsAndPreview() {
+    let execution = ScriptExecution(scriptName: "Test")
+    let runtime = execution.run(
+      source: """
+        let widget = new ListWidget()
+        widget.addText(config.widgetFamily)
+        Script.setWidget(widget)
+        Script.complete()
+        """,
+      scriptName: "Test",
+      widgetFamily: "small"
+    )
+
+    XCTAssertEqual((runtime.scriptWidget?.children.first as? WidgetTextModel)?.text, "small")
+    XCTAssertEqual(runtime.activePreview?.family, "small")
+  }
+
   func testNamedColorAppliesToWidgetText() {
     let runtime = JSRuntime()
     runtime.installScriptableAPI(scriptName: "Test")
@@ -133,6 +150,41 @@ final class RuntimeTests: XCTestCase {
     XCTAssertEqual(gradient.locations, [0.2, 0.8])
     XCTAssertEqual(gradient.startX, 0)
     XCTAssertEqual(gradient.endY, 1)
+  }
+
+  func testWidgetExtensionPreservesLayoutSizing() async {
+    let snapshot = await ScriptWidgetRunner.run(
+      script: SharedWidgetScript(
+        name: "Layout",
+        script: """
+          let widget = new ListWidget()
+          widget.setPadding(12, 13, 14, 15)
+          let row = widget.addStack()
+          let amount = row.addText("R 20k")
+          amount.minimumScaleFactor = 0.65
+          row.addSpacer(6)
+          row.addText("down 59%")
+          Script.setWidget(widget)
+          Script.complete()
+          """),
+      family: "small"
+    )
+
+    XCTAssertEqual(snapshot.padding.top, 12)
+    XCTAssertEqual(snapshot.padding.leading, 13)
+    XCTAssertEqual(snapshot.padding.bottom, 14)
+    XCTAssertEqual(snapshot.padding.trailing, 15)
+    guard case .stack(let row) = snapshot.elements.first else {
+      return XCTFail("Expected a metric row")
+    }
+    guard case .text(let amount) = row.elements.first else {
+      return XCTFail("Expected an amount")
+    }
+    XCTAssertEqual(amount.minimumScaleFactor, 0.65)
+    guard case .spacer(let spacing) = row.elements[1] else {
+      return XCTFail("Expected fixed row spacing")
+    }
+    XCTAssertEqual(spacing, 6)
   }
 
   func testRoundedSystemFontAppliesToWidgetText() {

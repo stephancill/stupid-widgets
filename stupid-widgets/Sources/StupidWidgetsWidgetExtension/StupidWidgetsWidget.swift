@@ -75,18 +75,18 @@ struct StupidWidgetsWidget: Widget {
     }
 
     func snapshot(for configuration: SelectScriptIntent, in context: Context) async -> Entry {
-      await entry(for: configuration)
+      await entry(for: configuration, family: context.family)
     }
 
     func timeline(for configuration: SelectScriptIntent, in context: Context) async -> Timeline<
       Entry
     > {
-      let entry = await entry(for: configuration)
+      let entry = await entry(for: configuration, family: context.family)
       let refresh = entry.snapshot.refreshAfterDate ?? .now.addingTimeInterval(30 * 60)
       return Timeline(entries: [entry], policy: .after(refresh))
     }
 
-    private func entry(for configuration: SelectScriptIntent) async -> Entry {
+    private func entry(for configuration: SelectScriptIntent, family: WidgetFamily) async -> Entry {
       let snapshot: ScriptWidgetSnapshot
       do {
         let scripts = try StupidWidgetsWidgetStorage.availableScripts()
@@ -97,7 +97,7 @@ struct StupidWidgetsWidget: Widget {
         else {
           throw CocoaError(.fileNoSuchFile)
         }
-        snapshot = await ScriptWidgetRunner.run(script: script)
+        snapshot = await ScriptWidgetRunner.run(script: script, family: scriptableFamily(family))
       } catch {
         snapshot = .message(
           title: "stupid widgets",
@@ -105,6 +105,19 @@ struct StupidWidgetsWidget: Widget {
         )
       }
       return Entry(date: .now, snapshot: snapshot)
+    }
+
+    private func scriptableFamily(_ family: WidgetFamily) -> String {
+      switch family {
+      case .systemSmall: "small"
+      case .systemMedium: "medium"
+      case .systemLarge: "large"
+      case .systemExtraLarge: "extraLarge"
+      case .accessoryCircular: "accessoryCircular"
+      case .accessoryRectangular: "accessoryRectangular"
+      case .accessoryInline: "accessoryInline"
+      @unknown default: "medium"
+      }
     }
   }
 }

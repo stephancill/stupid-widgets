@@ -14,13 +14,15 @@ struct WidgetRenderer: View {
     GeometryReader { geo in
       ZStack {
         background
-        VStack(spacing: CGFloat(widget.spacing)) {
+        VStack(alignment: .leading, spacing: CGFloat(widget.spacing)) {
           ForEach(widget.children.map { WidgetElementID(object: $0) }) { item in
-            child(item.object)
+            child(item.object, parentLayout: .vertical)
           }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.top, CGFloat(widget.padding?.top ?? 12))
+        .padding(.leading, CGFloat(widget.padding?.leading ?? 16))
+        .padding(.bottom, CGFloat(widget.padding?.bottom ?? 12))
+        .padding(.trailing, CGFloat(widget.padding?.trailing ?? 16))
       }
       .frame(width: geo.size.width, height: geo.size.height)
       .clipShape(RoundedRectangle(cornerRadius: family == "medium" ? 22 : 18))
@@ -51,24 +53,26 @@ struct WidgetRenderer: View {
       })
   }
 
-  func child(_ el: JSObject) -> AnyView {
+  func child(_ el: JSObject, parentLayout: WidgetLayout) -> AnyView {
     switch el {
-    case let text as WidgetTextModel: return AnyView(textView(text))
-    case let date as WidgetDateModel: return AnyView(dateView(date))
-    case let image as WidgetImageModel: return AnyView(imageView(image))
+    case let text as WidgetTextModel: return textView(text, fillsWidth: parentLayout == .vertical)
+    case let date as WidgetDateModel: return dateView(date, fillsWidth: parentLayout == .vertical)
+    case let image as WidgetImageModel:
+      return imageView(image, fillsWidth: parentLayout == .vertical)
     case let spacer as WidgetSpacerModel:
       if spacer.length > 0 {
-        return AnyView(Spacer().frame(height: CGFloat(spacer.length)))
+        return parentLayout == .horizontal
+          ? AnyView(Spacer().frame(width: CGFloat(spacer.length)))
+          : AnyView(Spacer().frame(height: CGFloat(spacer.length)))
       }
       return AnyView(Spacer(minLength: 0))
-    case let stack as WidgetStackModel: return AnyView(stackView(stack))
+    case let stack as WidgetStackModel: return stackView(stack, parentLayout: parentLayout)
     default: return AnyView(EmptyView())
     }
   }
 
-  @ViewBuilder
-  func textView(_ text: WidgetTextModel) -> some View {
-    Text(text.text)
+  func textView(_ text: WidgetTextModel, fillsWidth: Bool) -> AnyView {
+    let view = Text(text.text)
       .font(text.font.map { Font($0.font) } ?? .body)
       .foregroundColor(text.textColor.map { Color($0.uiColor) } ?? .primary)
       .opacity(text.textOpacity)
@@ -77,26 +81,22 @@ struct WidgetRenderer: View {
       .multilineTextAlignment(
         text.alignment == .center ? .center : (text.alignment == .right ? .trailing : .leading)
       )
-      .frame(
-        maxWidth: .infinity,
-        alignment: text.alignment == .center
-          ? .center : (text.alignment == .right ? .trailing : .leading))
+    guard fillsWidth else { return AnyView(view) }
+    return AnyView(view.frame(maxWidth: .infinity, alignment: frameAlignment(text.alignment)))
   }
 
-  @ViewBuilder
-  func dateView(_ date: WidgetDateModel) -> some View {
-    Text(dateLabel(date))
+  func dateView(_ date: WidgetDateModel, fillsWidth: Bool) -> AnyView {
+    let view = Text(dateLabel(date))
       .font(date.font.map { Font($0.font) } ?? .body)
       .foregroundColor(date.textColor.map { Color($0.uiColor) } ?? .primary)
       .opacity(date.textOpacity)
       .lineLimit(date.lineLimit > 0 ? date.lineLimit : nil)
+      .minimumScaleFactor(date.minimumScaleFactor)
       .multilineTextAlignment(
         date.alignment == .center ? .center : (date.alignment == .right ? .trailing : .leading)
       )
-      .frame(
-        maxWidth: .infinity,
-        alignment: date.alignment == .center
-          ? .center : (date.alignment == .right ? .trailing : .leading))
+    guard fillsWidth else { return AnyView(view) }
+    return AnyView(view.frame(maxWidth: .infinity, alignment: frameAlignment(date.alignment)))
   }
 
   private func dateLabel(_ date: WidgetDateModel) -> String {
@@ -125,9 +125,8 @@ struct WidgetRenderer: View {
     return formatter.string(from: date.date)
   }
 
-  @ViewBuilder
-  func imageView(_ image: WidgetImageModel) -> some View {
-    Group {
+  func imageView(_ image: WidgetImageModel, fillsWidth: Bool) -> AnyView {
+    let view = Group {
       if let uiImage = image.image?.image {
         Image(uiImage: uiImage)
           .resizable()
@@ -142,24 +141,37 @@ struct WidgetRenderer: View {
         EmptyView()
       }
     }
-    .frame(
-      maxWidth: .infinity,
-      alignment: image.alignment == .center
-        ? .center : (image.alignment == .right ? .trailing : .leading))
+    guard fillsWidth else { return AnyView(view) }
+    return AnyView(view.frame(maxWidth: .infinity, alignment: frameAlignment(image.alignment)))
   }
 
-  @ViewBuilder
-  func stackView(_ stack: WidgetStackModel) -> some View {
+  func stackView(_ stack: WidgetStackModel, parentLayout: WidgetLayout) -> AnyView {
     let spacing = CGFloat(stack.spacing)
-    let content = Group {
-      ForEach(stack.children.map { WidgetElementID(object: $0) }) { item in
-        child(item.object)
-      }
-    }
+    let view: AnyView
     if stack.layout == .horizontal {
-      HStack(spacing: spacing) { content }
+      view = AnyView(
+        HStack(spacing: spacing) {
+          ForEach(stack.children.map { WidgetElementID(object: $0) }) { item in
+            child(item.object, parentLayout: .horizontal)
+          }
+        })
     } else {
-      VStack(spacing: spacing) { content }
+      view = AnyView(
+        VStack(alignment: .leading, spacing: spacing) {
+          ForEach(stack.children.map { WidgetElementID(object: $0) }) { item in
+            child(item.object, parentLayout: .vertical)
+          }
+        })
+    }
+    guard parentLayout == .vertical else { return view }
+    return AnyView(view.frame(maxWidth: .infinity, alignment: .leading))
+  }
+
+  private func frameAlignment(_ alignment: TextAlignment) -> Alignment {
+    switch alignment {
+    case .left: .leading
+    case .center: .center
+    case .right: .trailing
     }
   }
 }

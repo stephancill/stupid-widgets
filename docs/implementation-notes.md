@@ -642,3 +642,18 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
 - Added the app's Scriptable-compatible arbitrary-load transport policy to the WidgetKit extension.
   Plain HTTP requests now use the same ATS policy in Home Screen widgets as they do in app previews.
 - Bumped the app and WidgetKit extension together from build 5 to build 6 for TestFlight.
+
+---
+
+## 2026-08-16 — Small-widget layout and size previews
+
+- Made widget rendering axis-aware in both app previews and WidgetKit. Text in horizontal stacks now
+  keeps its intrinsic width, and fixed stack spacers consume their requested horizontal width instead
+  of expanding and forcing labels into distant truncated columns.
+- Preserved root widget padding and text minimum scale factors through the WidgetKit snapshot path.
+- Added Small, Medium, and Large controls to widget details. Selecting a family reruns the script with
+  the corresponding `config.widgetFamily` and renders it at that family's aspect ratio.
+- WidgetKit execution now also supplies the actual system family through `config.widgetFamily`.
+- Passed all twenty-nine simulator tests, completed an xtool app/extension build and installation,
+  and verified the family selector and correctly sized Small preview on the preferred simulator.
+- Bumped the app and WidgetKit extension together from build 6 to build 7 for TestFlight.

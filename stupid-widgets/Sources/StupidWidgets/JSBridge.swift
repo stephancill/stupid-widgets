@@ -95,6 +95,7 @@ final class JSRuntime: ObservableObject {
   var moduleStack: [(url: URL, module: JSValue)] = []
   var rootModule: JSValue?
   var lastException: JSValue?
+  var widgetFamily = "medium"
 
   @Published var consoleLines: [String] = []
   @Published var activeAlert: AlertRequest?

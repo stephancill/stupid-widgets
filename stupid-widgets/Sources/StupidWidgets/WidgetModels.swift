@@ -310,6 +310,7 @@ final class WidgetDateModel: WidgetElementModel {
     case "font": return font.map { runtime.toJS($0) }
     case "textOpacity": return textOpacity
     case "lineLimit": return lineLimit
+    case "minimumScaleFactor": return minimumScaleFactor
     default: return super.jsGet(runtime, name)
     }
   }
@@ -320,6 +321,8 @@ final class WidgetDateModel: WidgetElementModel {
     case "font": font = runtime.nativeObject(value) as? FontModel
     case "textOpacity": textOpacity = runtime.double(value) ?? textOpacity
     case "lineLimit": lineLimit = runtime.double(value).map { Int($0) } ?? lineLimit
+    case "minimumScaleFactor":
+      minimumScaleFactor = runtime.double(value) ?? minimumScaleFactor
     default: super.jsSet(runtime, name, value)
     }
   }

@@ -171,6 +171,24 @@ struct ScriptListView: View {
 
 // MARK: - Editor
 
+enum WidgetPreviewFamily: String, CaseIterable, Identifiable {
+  case small
+  case medium
+  case large
+
+  var id: Self { self }
+
+  var title: String { rawValue.capitalized }
+
+  var size: CGSize {
+    switch self {
+    case .small: CGSize(width: 170, height: 170)
+    case .medium: CGSize(width: 360, height: 170)
+    case .large: CGSize(width: 360, height: 380)
+    }
+  }
+}
+
 @MainActor
 final class ScriptExecution: ObservableObject {
   @Published var runtime: JSRuntime
@@ -182,9 +200,10 @@ final class ScriptExecution: ObservableObject {
   }
 
   @discardableResult
-  func run(source: String, scriptName: String) -> JSRuntime {
+  func run(source: String, scriptName: String, widgetFamily: String = "medium") -> JSRuntime {
     let runtime = JSRuntime()
-    runtime.installScriptableAPI(scriptName: scriptName, runsInWidget: true)
+    runtime.installScriptableAPI(
+      scriptName: scriptName, runsInWidget: true, widgetFamily: widgetFamily)
     self.runtime = runtime
     runtime.evaluate(source)
     return runtime
@@ -205,6 +224,7 @@ struct EditorView: View {
   @State private var pendingUndoSource: String?
   @State private var isEditingTitle = false
   @State private var titleText = ""
+  @State private var previewFamily = WidgetPreviewFamily.medium
 
   init(script: Script) {
     self.script = script
@@ -227,9 +247,11 @@ struct EditorView: View {
           RuntimeConsole(runtime: execution.runtime)
         }
       } else {
-        ScriptDetailPreview(runtime: execution.runtime) {
-          showingCode = true
-        }
+        ScriptDetailPreview(
+          runtime: execution.runtime,
+          family: $previewFamily,
+          onShowError: { showingCode = true }
+        )
       }
     }
     .navigationBarTitleDisplayMode(.inline)
@@ -277,6 +299,7 @@ struct EditorView: View {
       RuntimePresentationHost(runtime: execution.runtime, presentsWidgetPreviews: false)
     )
     .onChange(of: source) { _, newValue in store.updateSource(id: script.id, source: newValue) }
+    .onChange(of: previewFamily) { _, _ in run() }
     .alert(
       "Assistant Error",
       isPresented: Binding(
@@ -312,7 +335,8 @@ struct EditorView: View {
   }
 
   private func run() {
-    let runtime = execution.run(source: source, scriptName: scriptName)
+    let runtime = execution.run(
+      source: source, scriptName: scriptName, widgetFamily: previewFamily.rawValue)
     Task { @MainActor in
       for _ in 0..<200 where !runtime.completed {
         try? await Task.sleep(for: .milliseconds(100))
@@ -487,29 +511,50 @@ private struct ChangePromptField: View {
 
 struct ScriptDetailPreview: View {
   @ObservedObject var runtime: JSRuntime
+  @Binding var family: WidgetPreviewFamily
   let onShowError: () -> Void
 
   var body: some View {
-    Group {
-      if let preview = runtime.activePreview, case .widget = preview.kind,
-        let widget = preview.widget
-      {
-        WidgetRenderer(widget: widget, family: preview.family)
-          .frame(width: 320, height: preview.family == "medium" ? 155 : 320)
-      } else if !runtime.completed {
-        ProgressView("Running script...")
-      } else {
-        ContentUnavailableView {
-          Label("No Widget", systemImage: "rectangle.slash")
-        } description: {
-          Text("This script did not produce a widget.")
-        } actions: {
-          Button("Show Error", action: onShowError)
+    VStack(spacing: 16) {
+      Picker("Widget size", selection: $family) {
+        ForEach(WidgetPreviewFamily.allCases) { family in
+          Text(family.title).tag(family)
         }
       }
+      .pickerStyle(.segmented)
+      .frame(maxWidth: 320)
+
+      Group {
+        if let preview = runtime.activePreview, case .widget = preview.kind,
+          let widget = preview.widget
+        {
+          WidgetPreviewCanvas(widget: widget, family: family)
+        } else if !runtime.completed {
+          ProgressView("Running script...")
+        } else {
+          ContentUnavailableView {
+            Label("No Widget", systemImage: "rectangle.slash")
+          } description: {
+            Text("This script did not produce a widget.")
+          } actions: {
+            Button("Show Error", action: onShowError)
+          }
+        }
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .padding()
+  }
+}
+
+private struct WidgetPreviewCanvas: View {
+  let widget: ListWidgetModel
+  let family: WidgetPreviewFamily
+
+  var body: some View {
+    WidgetRenderer(widget: widget, family: family.rawValue)
+      .frame(width: family.size.width, height: family.size.height)
   }
 }
 
@@ -634,9 +679,11 @@ struct WidgetPreviewSheet: View {
       switch preview.kind {
       case .widget:
         if let widget = preview.widget {
-          WidgetRenderer(widget: widget, family: preview.family)
-            .frame(width: 320, height: preview.family == "medium" ? 155 : 320)
-            .padding()
+          WidgetPreviewCanvas(
+            widget: widget,
+            family: WidgetPreviewFamily(rawValue: preview.family) ?? .medium
+          )
+          .padding()
         }
       case .text:
         ScrollView {
