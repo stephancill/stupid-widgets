@@ -36,7 +36,10 @@ extension JSRuntime {
           "cyan", "yellow", "magenta", "orange", "purple", "brown", "clear", "dynamic",
         ]
       ) { runtime, args in
-        if let s = runtime.string(args.first), let c = ColorModel(hexString: s) {
+        if let s = runtime.string(args.first),
+          let c = ColorModel(
+            hexString: s, alpha: runtime.double(args.count > 1 ? args[1] : nil))
+        {
           return c
         }
         let r = runtime.double(args.count > 0 ? args[0] : nil) ?? 0

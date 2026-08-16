@@ -25,14 +25,15 @@ final class ColorModel: JSObject {
     )
   }
 
-  convenience init?(hexString: String) {
+  convenience init?(hexString: String, alpha: Double? = nil) {
     var hex = hexString.trimmingCharacters(in: .whitespaces)
     if hex.hasPrefix("#") { hex.removeFirst() }
     guard hex.count == 6 || hex.count == 8, let value = UInt64(hex, radix: 16) else { return nil }
-    let r = Double((value >> 16) & 0xFF) / 255
-    let g = Double((value >> 8) & 0xFF) / 255
-    let b = Double(value & 0xFF) / 255
-    let a = hex.count == 8 ? Double((value >> 24) & 0xFF) / 255 : 1
+    let hasEmbeddedAlpha = hex.count == 8
+    let r = Double((value >> (hasEmbeddedAlpha ? 24 : 16)) & 0xFF) / 255
+    let g = Double((value >> (hasEmbeddedAlpha ? 16 : 8)) & 0xFF) / 255
+    let b = Double((value >> (hasEmbeddedAlpha ? 8 : 0)) & 0xFF) / 255
+    let a = alpha ?? (hasEmbeddedAlpha ? Double(value & 0xFF) / 255 : 1)
     self.init(red: r, green: g, blue: b, alpha: a)
   }
 

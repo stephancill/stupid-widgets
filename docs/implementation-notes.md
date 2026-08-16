@@ -599,3 +599,38 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
   script execution name while surfacing existing validation errors.
 - Bumped the app and WidgetKit extension together from build 3 to build 4 for TestFlight and added a
   project rule requiring synchronized build numbers before release archives and uploads.
+
+---
+
+## 2026-08-16 — Widget creation and gradient rendering
+
+- Changed the new-widget naming alert to use Widget terminology and navigate directly to the new
+  widget detail after creation. Rename and storage error alerts now use the same Widget terminology.
+- Ordered the app library by descending file-edit time and clear cached URL resource values so an
+  autosave immediately moves the edited widget to the top.
+- Preserved background gradients, stop locations, and start/end points through the WidgetKit snapshot
+  path instead of replacing them with the fallback color. The in-app renderer now honors stop
+  locations as well.
+- Corrected eight-digit `#RRGGBBAA` color decoding and the explicit alpha argument accepted by
+  `new Color(hex, alpha)`, fixing translucent gradient colors used by widget scripts.
+- Added regressions for edit-recency ordering, color channels/alpha, and WidgetKit gradient snapshots;
+  all twenty-six simulator tests pass.
+
+---
+
+## 2026-08-16 — Explicit script rerun control
+
+- Renamed the detail control's internal render action and accessibility label to explicitly describe
+  rerunning the widget script. Reload remains wired to `ScriptExecution.run`, which creates a fresh
+  JavaScript runtime and evaluates the current source rather than refreshing the existing SwiftUI tree.
+- Added a regression proving consecutive detail runs replace the runtime and produce a new widget.
+  All twenty-seven simulator tests pass.
+
+---
+
+## 2026-08-16 — New widget name validation
+
+- Disabled the naming alert's Create action while its input is empty or contains only whitespace.
+- Prepopulated new widget names with `Untitled Widget`, focused the field on presentation, and selected
+  the complete default name so typing immediately replaces it.
+- Bumped the app and WidgetKit extension together from build 4 to build 5 for TestFlight.

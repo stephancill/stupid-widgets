@@ -19,9 +19,11 @@ struct ScriptListView: View {
   @State private var isCreating = false
   @State private var renaming: Script?
   @State private var renameText = ""
+  @State private var navigationPath: [UUID] = []
+  @FocusState private var isNameFieldFocused: Bool
 
   var body: some View {
-    NavigationStack {
+    NavigationStack(path: $navigationPath) {
       List {
         ForEach(store.scripts) { script in
           scriptRow(script)
@@ -33,21 +35,22 @@ struct ScriptListView: View {
         if let script = store.script(id: id) {
           EditorView(script: script)
         } else {
-          ContentUnavailableView("Script Not Found", systemImage: "doc.badge.ellipsis")
+          ContentUnavailableView("Widget Not Found", systemImage: "doc.badge.ellipsis")
         }
       }
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
           Button {
-            renameText = "Untitled Script"
+            renameText = "Untitled Widget"
             isCreating = true
+            focusNameField(selectAll: true)
           } label: {
             Image(systemName: "plus")
           }
         }
       }
       .alert(
-        isCreating ? "New Script" : "Rename Script",
+        isCreating ? "New Widget" : "Rename Widget",
         isPresented: Binding(
           get: { isCreating || renaming != nil },
           set: {
@@ -59,22 +62,26 @@ struct ScriptListView: View {
         )
       ) {
         TextField("Name", text: $renameText)
+          .focused($isNameFieldFocused)
         Button("Cancel", role: .cancel) {
           isCreating = false
           renaming = nil
         }
         Button(isCreating ? "Create" : "Rename") {
           if isCreating {
-            store.create(name: renameText)
+            if let widget = store.create(name: renameText) {
+              navigationPath.append(widget.id)
+            }
           } else if let script = renaming {
             store.rename(id: script.id, to: renameText)
           }
           isCreating = false
           renaming = nil
         }
+        .disabled(isCreating && renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
       }
       .alert(
-        "Script Error",
+        "Widget Error",
         isPresented: Binding(
           get: { store.errorMessage != nil },
           set: { if !$0 { store.errorMessage = nil } }
@@ -109,6 +116,7 @@ struct ScriptListView: View {
       Button("Rename") {
         renaming = script
         renameText = script.name
+        focusNameField(selectAll: false)
       }
       .tint(.blue)
     }
@@ -120,8 +128,7 @@ struct ScriptListView: View {
   }
 
   private func relativeEditedTime(for script: Script) -> String {
-    let values = try? script.fileURL.resourceValues(forKeys: [.contentModificationDateKey])
-    guard let date = values?.contentModificationDate else { return "" }
+    guard let date = script.modificationDate else { return "" }
 
     let seconds = max(0, Int(Date().timeIntervalSince(date)))
     if seconds < 60 { return "now" }
@@ -134,6 +141,31 @@ struct ScriptListView: View {
     let months = days / 30
     if months < 12 { return "\(months)mo" }
     return "\(months / 12)y"
+  }
+
+  private func focusNameField(selectAll: Bool) {
+    Task { @MainActor in
+      try? await Task.sleep(for: .milliseconds(100))
+      isNameFieldFocused = true
+      guard selectAll else { return }
+      try? await Task.sleep(for: .milliseconds(50))
+      for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+        for window in scene.windows {
+          if let textField = firstResponderTextField(in: window) {
+            textField.selectAll(nil)
+            return
+          }
+        }
+      }
+    }
+  }
+
+  private func firstResponderTextField(in view: UIView) -> UITextField? {
+    if let textField = view as? UITextField, textField.isFirstResponder { return textField }
+    for subview in view.subviews {
+      if let textField = firstResponderTextField(in: subview) { return textField }
+    }
+    return nil
   }
 }
 
@@ -229,14 +261,14 @@ struct EditorView: View {
         onUndo: undoChanges,
         onSubmit: submitPrompt,
         onCancel: cancelPrompt,
-        onRender: run
+        onRerun: run
       )
       .padding(.horizontal, 28)
       .padding(.top, 10)
       .padding(.bottom, 8)
       .background(.black.opacity(0.001))
     }
-    .alert("Rename Script", isPresented: $isEditingTitle) {
+    .alert("Rename Widget", isPresented: $isEditingTitle) {
       TextField("Name", text: $titleText)
       Button("Cancel", role: .cancel) {}
       Button("Rename", action: saveTitle)
@@ -262,7 +294,7 @@ struct EditorView: View {
       Text(chat.errorMessage ?? auth.errorMessage ?? "Unknown error")
     }
     .alert(
-      "Script Error",
+      "Widget Error",
       isPresented: Binding(
         get: { store.errorMessage != nil },
         set: { if !$0 { store.errorMessage = nil } }
@@ -352,14 +384,14 @@ private struct ChangePromptField: View {
   let onUndo: () -> Void
   let onSubmit: () -> Void
   let onCancel: () -> Void
-  let onRender: () -> Void
+  let onRerun: () -> Void
   @State private var compactTextWidth: CGFloat = 0
 
   var body: some View {
     HStack(spacing: 10) {
       if !isExpanded, canUndo { undoButton }
       promptField
-      if !isExpanded { renderButton }
+      if !isExpanded { rerunButton }
     }
     .frame(maxWidth: .infinity)
     .animation(.snappy, value: isExpanded)
@@ -425,8 +457,8 @@ private struct ChangePromptField: View {
     }
   }
 
-  private var renderButton: some View {
-    Button(action: onRender) {
+  private var rerunButton: some View {
+    Button(action: onRerun) {
       Image(systemName: "arrow.clockwise")
         .font(.title3)
     }
@@ -437,7 +469,7 @@ private struct ChangePromptField: View {
         .stroke(.secondary.opacity(0.25), lineWidth: 1)
     }
     .buttonStyle(.plain)
-    .accessibilityLabel("Rerender widget")
+    .accessibilityLabel("Rerun widget script")
   }
 
   private var isExpanded: Bool {

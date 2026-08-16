@@ -256,7 +256,7 @@ Responses tool loop:
   Undo and Reload buttons flank a material-capsule prompt with its own Play submit action. Prompt text
   stays visible and editing/Undo are disabled during a request, then the prompt clears on completion.
   Successful edits rerun the widget; Undo restores the source snapshot from before the latest AI edit
-  and reruns it, while Reload always rerenders the current source.
+  and reruns it, while Reload executes the current source again in a fresh runtime.
 - Cancellation terminates the local stream task.
 
 The ChatGPT backend endpoint and borrowed OpenCode client registration are undocumented interfaces.

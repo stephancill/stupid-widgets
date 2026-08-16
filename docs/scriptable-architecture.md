@@ -245,7 +245,7 @@ iterate conversationally with the full editor contents as context.
 - A bottom control on script details accepts natural-language generation and modification requests.
   A prompt-local Play action submits the request, successful edits autosave and rerender the widget,
   standalone Undo restores the source from before the latest AI request, and standalone Reload
-  rerenders the current source.
+  executes the current source again in a fresh runtime.
 - Source remains available through the detail view's explicit Edit/Preview control.
 
 ### Build order

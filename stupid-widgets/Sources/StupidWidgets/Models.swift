@@ -11,6 +11,12 @@ struct Script: Identifiable, Hashable {
   var shareSheetInputs: [String]
   var fileURL: URL
 
+  var modificationDate: Date? {
+    var url = fileURL
+    url.removeAllCachedResourceValues()
+    return try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+  }
+
   private struct FileContents: Codable {
     struct Icon: Codable {
       var color: String
@@ -76,13 +82,11 @@ final class ScriptStore: ObservableObject {
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
       try seedBundledScripts()
       let urls = try FileManager.default.contentsOfDirectory(
-        at: directory, includingPropertiesForKeys: nil
+        at: directory, includingPropertiesForKeys: [.contentModificationDateKey]
       )
       .filter { $0.pathExtension.lowercased() == "scriptable" }
-      .sorted {
-        $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
-      }
       scripts = try urls.map(Script.fromFile)
+      sort()
       syncWidgetScripts()
       errorMessage = nil
     } catch {
@@ -95,7 +99,7 @@ final class ScriptStore: ObservableObject {
   }
 
   @discardableResult
-  func create(name: String = "Untitled Script") -> Script? {
+  func create(name: String) -> Script? {
     do {
       let uniqueName = try availableName(startingWith: name)
       let url = fileURL(for: uniqueName)
@@ -127,6 +131,7 @@ final class ScriptStore: ObservableObject {
     do {
       try write(updated)
       scripts[index] = updated
+      sort()
       errorMessage = nil
     } catch {
       errorMessage = error.localizedDescription
@@ -141,7 +146,7 @@ final class ScriptStore: ObservableObject {
     guard let index = scripts.firstIndex(where: { $0.id == id }) else { return }
     let name = proposedName.trimmingCharacters(in: .whitespacesAndNewlines)
     guard isValid(name: name) else {
-      errorMessage = "Script names cannot be empty or contain / or :."
+      errorMessage = "Widget names cannot be empty or contain / or :."
       return
     }
     guard
@@ -149,7 +154,7 @@ final class ScriptStore: ObservableObject {
         $0.id != id && $0.name.caseInsensitiveCompare(name) == .orderedSame
       })
     else {
-      errorMessage = "A script named \(name) already exists."
+      errorMessage = "A widget named \(name) already exists."
       return
     }
     var updated = scripts[index]
@@ -265,6 +270,11 @@ final class ScriptStore: ObservableObject {
   }
 
   private func sort() {
-    scripts.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    scripts.sort {
+      let leftDate = $0.modificationDate ?? .distantPast
+      let rightDate = $1.modificationDate ?? .distantPast
+      if leftDate != rightDate { return leftDate > rightDate }
+      return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+    }
   }
 }

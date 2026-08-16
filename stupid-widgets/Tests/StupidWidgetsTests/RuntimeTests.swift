@@ -65,6 +65,18 @@ final class RuntimeTests: XCTestCase {
     XCTAssertNil(runtime.activeTable)
   }
 
+  func testDetailRerunUsesFreshRuntime() {
+    let execution = ScriptExecution(scriptName: "Test")
+    let first = execution.run(
+      source: "Script.setWidget(new ListWidget()); Script.complete()", scriptName: "Test")
+    let second = execution.run(
+      source: "Script.setWidget(new ListWidget()); Script.complete()", scriptName: "Test")
+
+    XCTAssertFalse(first === second)
+    XCTAssertTrue(execution.runtime === second)
+    XCTAssertNotNil(second.scriptWidget)
+  }
+
   func testNamedColorAppliesToWidgetText() {
     let runtime = JSRuntime()
     runtime.installScriptableAPI(scriptName: "Test")
@@ -81,6 +93,46 @@ final class RuntimeTests: XCTestCase {
     XCTAssertEqual(text?.textColor?.red, 0)
     XCTAssertEqual(text?.textColor?.green, 0.478)
     XCTAssertEqual(text?.textColor?.blue, 1)
+  }
+
+  func testEightDigitColorAndExplicitAlpha() {
+    guard let embeddedAlpha = ColorModel(hexString: "#b00a0fe6"),
+      let explicitAlpha = ColorModel(hexString: "#b00a0f", alpha: 0.5)
+    else {
+      return XCTFail("Expected valid colors")
+    }
+
+    XCTAssertEqual(embeddedAlpha.red, 176.0 / 255, accuracy: 0.0001)
+    XCTAssertEqual(embeddedAlpha.green, 10.0 / 255, accuracy: 0.0001)
+    XCTAssertEqual(embeddedAlpha.blue, 15.0 / 255, accuracy: 0.0001)
+    XCTAssertEqual(embeddedAlpha.alpha, 230.0 / 255, accuracy: 0.0001)
+    XCTAssertEqual(explicitAlpha.alpha, 0.5)
+  }
+
+  func testWidgetExtensionPreservesBackgroundGradient() async {
+    let snapshot = await ScriptWidgetRunner.run(
+      script: SharedWidgetScript(
+        name: "Gradient",
+        script: """
+          let widget = new ListWidget()
+          let gradient = new LinearGradient()
+          gradient.colors = [new Color("#112233"), new Color("#445566")]
+          gradient.locations = [0.2, 0.8]
+          gradient.startPoint = new Point(0, 0)
+          gradient.endPoint = new Point(1, 1)
+          widget.backgroundGradient = gradient
+          Script.setWidget(widget)
+          Script.complete()
+          """)
+    )
+
+    guard case .gradient(let gradient) = snapshot.background else {
+      return XCTFail("Expected a gradient background")
+    }
+    XCTAssertEqual(gradient.colors.count, 2)
+    XCTAssertEqual(gradient.locations, [0.2, 0.8])
+    XCTAssertEqual(gradient.startX, 0)
+    XCTAssertEqual(gradient.endY, 1)
   }
 
   func testRoundedSystemFontAppliesToWidgetText() {

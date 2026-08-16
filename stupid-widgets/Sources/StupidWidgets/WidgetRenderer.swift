@@ -31,7 +31,7 @@ struct WidgetRenderer: View {
   private var background: some View {
     if let gradient = widget.backgroundGradient {
       LinearGradient(
-        colors: gradient.colors.map { Color($0.uiColor) },
+        gradient: swiftUIGradient(gradient),
         startPoint: .init(x: gradient.startPoint.x, y: gradient.startPoint.y),
         endPoint: .init(x: gradient.endPoint.x, y: gradient.endPoint.y)
       )
@@ -40,6 +40,15 @@ struct WidgetRenderer: View {
     } else {
       Color((widget.backgroundColor?.uiColor) ?? UIColor.systemBackground)
     }
+  }
+
+  private func swiftUIGradient(_ gradient: LinearGradientModel) -> Gradient {
+    let colors = gradient.colors.map { Color($0.uiColor) }
+    guard gradient.locations.count == colors.count else { return Gradient(colors: colors) }
+    return Gradient(
+      stops: zip(colors, gradient.locations).map { color, location in
+        Gradient.Stop(color: color, location: location)
+      })
   }
 
   func child(_ el: JSObject) -> AnyView {

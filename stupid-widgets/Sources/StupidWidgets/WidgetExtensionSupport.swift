@@ -39,14 +39,15 @@ public struct SharedWidgetScript: Decodable, Sendable {
 }
 
 public struct ScriptWidgetSnapshot: Sendable {
-  public let background: ScriptWidgetColor
+  public let background: ScriptWidgetBackground
   public let spacing: Double
   public let refreshAfterDate: Date?
   public let elements: [ScriptWidgetElement]
 
   public static func message(title: String, body: String) -> ScriptWidgetSnapshot {
     ScriptWidgetSnapshot(
-      background: ScriptWidgetColor(red: 0.08, green: 0.09, blue: 0.11, alpha: 1),
+      background: .color(
+        ScriptWidgetColor(red: 0.08, green: 0.09, blue: 0.11, alpha: 1)),
       spacing: 8,
       refreshAfterDate: nil,
       elements: [
@@ -61,6 +62,20 @@ public struct ScriptWidgetSnapshot: Sendable {
       ]
     )
   }
+}
+
+public enum ScriptWidgetBackground: Sendable {
+  case color(ScriptWidgetColor)
+  case gradient(ScriptWidgetGradient)
+}
+
+public struct ScriptWidgetGradient: Sendable {
+  public let colors: [ScriptWidgetColor]
+  public let locations: [Double]
+  public let startX: Double
+  public let startY: Double
+  public let endX: Double
+  public let endY: Double
 }
 
 public struct ScriptWidgetColor: Sendable {
@@ -177,12 +192,29 @@ public enum ScriptWidgetRunner {
   @MainActor
   private static func snapshot(widget: ListWidgetModel) -> ScriptWidgetSnapshot {
     ScriptWidgetSnapshot(
-      background: color(widget.backgroundColor)
-        ?? ScriptWidgetColor(red: 0.08, green: 0.09, blue: 0.11, alpha: 1),
+      background: background(widget),
       spacing: widget.spacing,
       refreshAfterDate: widget.refreshAfterDate,
       elements: widget.children.compactMap(element)
     )
+  }
+
+  @MainActor
+  private static func background(_ widget: ListWidgetModel) -> ScriptWidgetBackground {
+    if let gradient = widget.backgroundGradient, !gradient.colors.isEmpty {
+      return .gradient(
+        ScriptWidgetGradient(
+          colors: gradient.colors.compactMap(color),
+          locations: gradient.locations,
+          startX: gradient.startPoint.x,
+          startY: gradient.startPoint.y,
+          endX: gradient.endPoint.x,
+          endY: gradient.endPoint.y
+        ))
+    }
+    return .color(
+      color(widget.backgroundColor)
+        ?? ScriptWidgetColor(red: 0.08, green: 0.09, blue: 0.11, alpha: 1))
   }
 
   @MainActor
@@ -274,7 +306,7 @@ public struct ScriptWidgetSnapshotView: View {
 
   public var body: some View {
     ZStack {
-      color(snapshot.background)
+      background
       VStack(spacing: snapshot.spacing) {
         ForEach(Array(snapshot.elements.enumerated()), id: \.offset) { _, element in
           elementView(element)
@@ -283,6 +315,29 @@ public struct ScriptWidgetSnapshotView: View {
       .padding(14)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+
+  @ViewBuilder
+  private var background: some View {
+    switch snapshot.background {
+    case .color(let value):
+      color(value)
+    case .gradient(let value):
+      LinearGradient(
+        gradient: gradient(value),
+        startPoint: UnitPoint(x: value.startX, y: value.startY),
+        endPoint: UnitPoint(x: value.endX, y: value.endY)
+      )
+    }
+  }
+
+  private func gradient(_ value: ScriptWidgetGradient) -> Gradient {
+    let colors = value.colors.map(color)
+    guard value.locations.count == colors.count else { return Gradient(colors: colors) }
+    return Gradient(
+      stops: zip(colors, value.locations).map { color, location in
+        Gradient.Stop(color: color, location: location)
+      })
   }
 
   private func elementView(_ element: ScriptWidgetElement) -> AnyView {
