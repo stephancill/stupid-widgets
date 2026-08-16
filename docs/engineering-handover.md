@@ -263,9 +263,13 @@ The ChatGPT backend endpoint and borrowed OpenCode client registration are undoc
 They can change and should not be assumed App Store-safe without OpenAI approval. Tokens, account
 IDs, and response bodies must never be logged.
 
-The AI prompt currently describes the high-value implemented surface rather than embedding the full
-generated 55-type reference. Grounding should eventually be generated into an app resource directly
-from `docs/scriptable-api.json`.
+The AI prompt describes the high-value implemented surface and exposes a bounded `search_api` tool
+backed by `Resources/scriptable-api.json`. `tools/generate-api-spec.mjs` generates that pages-free app
+resource from the same canonical extraction as `docs/scriptable-api.json`, so the agent can look up
+exact types, members, signatures, parameters, return values, summaries, and documentation URLs without
+embedding the full 55-type reference in every request. Canonical docs include APIs that are not
+implemented yet; the system prompt's supported-type allowlist and runtime validation remain the
+execution guardrails.
 
 The latest verified AI E2E sequence was:
 

@@ -16,7 +16,8 @@ struct ScriptAgentTools {
     name: String,
     argumentsJSON: String,
     script: String,
-    compilationError: ((String) -> String?)? = nil
+    compilationError: ((String) -> String?)? = nil,
+    apiDocumentation: ScriptAPIDocumentation? = nil
   )
     -> ScriptAgentToolOutput
   {
@@ -27,6 +28,27 @@ struct ScriptAgentTools {
     }
 
     switch name {
+    case "search_api":
+      guard let query = arguments["query"] as? String,
+        !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      else {
+        return output(error: "query must be non-empty.", script: script)
+      }
+      let documentation: ScriptAPIDocumentation
+      if let apiDocumentation {
+        documentation = apiDocumentation
+      } else {
+        do {
+          documentation = try ScriptAPIDocumentation.bundledResult.get()
+        } catch {
+          return output(error: "API documentation resource is unavailable.", script: script)
+        }
+      }
+      return ScriptAgentToolOutput(
+        text: documentation.lookup(query: query),
+        script: script,
+        didUpdateScript: false
+      )
     case "read_script":
       let lines = script.components(separatedBy: "\n")
       let offset = max(arguments["offset"] as? Int ?? 1, 1)
@@ -377,6 +399,24 @@ struct AgentAIClient {
     [
       [
         "type": "function",
+        "name": "search_api",
+        "description":
+          "Search the canonical Scriptable API documentation by type or member. Use exact queries such as ListWidget, ListWidget.addText, or Request.loadJSON when possible.",
+        "parameters": [
+          "type": "object",
+          "properties": [
+            "query": [
+              "type": "string",
+              "description": "Type, member, signature, or concept to find.",
+            ]
+          ],
+          "required": ["query"],
+          "additionalProperties": false,
+        ],
+        "strict": false,
+      ],
+      [
+        "type": "function",
         "name": "read_script",
         "description":
           "Read a bounded range of the current editor script with one-based line numbers.",
@@ -411,7 +451,7 @@ struct AgentAIClient {
 
   private var systemPrompt: String {
     """
-    You edit JavaScript in stupid widgets, an iOS Scriptable-compatible JavaScriptCore runtime. Inspect only relevant ranges with read_script, then make minimal exact replacements with edit_script. Never reproduce the full script in text. Keep unrelated code unchanged. Use Scriptable APIs only: ListWidget and widget elements, Request, FileManager, Data, Image, Color, Font, Alert, UITable, Notification, Keychain, Pasteboard, Device, SFSymbol, Timer, DateFormatter, QuickLook, Safari, config, args, module, importModule, console, and Script. Use Request rather than fetch. Async/await is supported. Always await async entry-point calls so script execution does not finish before the widget is ready. For widgets call Script.setWidget(widget) and Script.complete(). If edit_script reports compilation_error or widget runtime validation reports a failure, do not finish: inspect the affected code and continue editing until validation succeeds. After successful edits, briefly summarize what changed.
+    You edit JavaScript in stupid widgets, an iOS Scriptable-compatible JavaScriptCore runtime. Inspect only relevant ranges with read_script, then make minimal exact replacements with edit_script. Never reproduce the full script in text. Keep unrelated code unchanged. Use search_api to confirm API names, signatures, properties, return values, and behavior instead of guessing. The search results describe canonical Scriptable; use only these currently supported APIs: ListWidget and widget elements, Request, FileManager, Data, Image, Color, Font, Alert, UITable, Notification, Keychain, Pasteboard, Device, SFSymbol, Timer, DateFormatter, QuickLook, Safari, config, args, module, importModule, console, and Script. Use Request rather than fetch. Async/await is supported. Always await async entry-point calls so script execution does not finish before the widget is ready. For widgets call Script.setWidget(widget) and Script.complete(). If edit_script reports compilation_error or widget runtime validation reports a failure, do not finish: inspect the affected code and continue editing until validation succeeds. After successful edits, briefly summarize what changed.
     """
   }
 }

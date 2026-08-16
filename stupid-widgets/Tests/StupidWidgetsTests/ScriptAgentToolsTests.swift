@@ -4,6 +4,31 @@ import XCTest
 
 @MainActor
 final class ScriptAgentToolsTests: XCTestCase {
+  func testSearchAPIReturnsExactMemberDocumentation() throws {
+    let documentation = try apiDocumentation()
+    let result = ScriptAgentTools.execute(
+      name: "search_api",
+      argumentsJSON: #"{"query":"ListWidget.addText"}"#,
+      script: "",
+      apiDocumentation: documentation
+    )
+
+    XCTAssertFalse(result.didUpdateScript)
+    XCTAssertTrue(result.text.contains(#""owner":"ListWidget""#))
+    XCTAssertTrue(result.text.contains(#""signature":"addText(text: string): WidgetText""#))
+    XCTAssertTrue(result.text.contains("Adds text to the widget"))
+  }
+
+  func testSearchAPIReturnsTypeOverviewAndFuzzyResults() throws {
+    let documentation = try apiDocumentation()
+    let typeResult = documentation.lookup(query: "ListWidget")
+    let searchResult = documentation.lookup(query: "load json")
+
+    XCTAssertTrue(typeResult.contains(#""runtime_members":["addText"]"#))
+    XCTAssertTrue(typeResult.contains(#""name":"addText""#))
+    XCTAssertTrue(searchResult.contains("Request.loadJSON"))
+  }
+
   func testReadScriptReturnsBoundedNumberedLines() {
     let result = ScriptAgentTools.execute(
       name: "read_script",
@@ -85,5 +110,59 @@ final class ScriptAgentToolsTests: XCTestCase {
     )
 
     XCTAssertNil(error)
+  }
+
+  private func apiDocumentation() throws -> ScriptAPIDocumentation {
+    let data = Data(
+      #"""
+      {
+        "source": { "name": "Scriptable", "version": "1.7.19" },
+        "types": {
+          "ListWidget": {
+            "name": "ListWidget",
+            "summary": "A widget shown on the Home Screen.",
+            "description": "Builds a widget hierarchy.",
+            "url": "https://docs.scriptable.app/listwidget",
+            "constructors": [],
+            "properties": [],
+            "methods": [
+              {
+                "name": "addText",
+                "signature": "addText(text: string): WidgetText",
+                "summary": "Adds text to the widget.",
+                "description": "Creates and appends a text element.",
+                "url": "https://docs.scriptable.app/listwidget/#-addtext",
+                "parameters": [
+                  { "name": "text", "type": "string", "description": "Text to show." }
+                ],
+                "returns": "The text element."
+              }
+            ],
+            "runtimeMembers": ["addText"]
+          },
+          "Request": {
+            "name": "Request",
+            "summary": "Performs HTTP requests.",
+            "description": null,
+            "url": null,
+            "constructors": [],
+            "properties": [],
+            "methods": [
+              {
+                "name": "loadJSON",
+                "signature": "loadJSON(): Promise<any>",
+                "summary": "Loads a response and parses JSON.",
+                "description": null,
+                "url": null
+              }
+            ],
+            "runtimeMembers": ["loadJSON"]
+          }
+        },
+        "globals": {},
+        "functions": {}
+      }
+      """#.utf8)
+    return try ScriptAPIDocumentation(data: data)
   }
 }

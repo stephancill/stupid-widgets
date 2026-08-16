@@ -657,3 +657,21 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
 - Passed all twenty-nine simulator tests, completed an xtool app/extension build and installation,
   and verified the family selector and correctly sized Small preview on the preferred simulator.
 - Bumped the app and WidgetKit extension together from build 6 to build 7 for TestFlight.
+
+---
+
+## 2026-08-16 — Agent API documentation lookup
+
+- Extended the API extraction generator to emit a pages-free `Resources/scriptable-api.json` from the
+  same canonical Scriptable source as `docs/scriptable-api.json`, and packaged it in the iOS app.
+- Added a bounded `search_api` agent tool. Exact type queries return type summaries and member
+  signatures, exact qualified member queries return descriptions, parameters, return values, and URLs,
+  and broader terms return up to twelve ranked results.
+- Updated the agent instructions to consult API documentation instead of guessing while retaining the
+  implemented-API allowlist because the canonical docs also describe APIs that remain unavailable.
+- Added regressions for exact member lookup, type overviews, and fuzzy API search.
+- Passed all thirty-one simulator tests and verified the bundled resource is present in the built app.
+  In an authenticated E2E request, the agent was explicitly asked to look up `Point` and
+  `LinearGradient.startPoint`, added only the documented diagonal-gradient assignments, passed
+  compilation and runtime validation, and rendered the result; Undo then restored the original script.
+- Bumped the app and WidgetKit extension together from build 7 to build 8 for TestFlight.

@@ -9,6 +9,7 @@ const protoExtPath = join(
   "third-party/scriptable/Payload/Scriptable.app/Frameworks/ScriptableKit.framework/prototype-extensions.js",
 );
 const outPath = join(root, "docs/scriptable-api.json");
+const agentResourcePath = join(root, "stupid-widgets/Resources/scriptable-api.json");
 const testContractPath = join(
   root,
   "stupid-widgets/Tests/StupidWidgetsTests/GeneratedAPIContract.swift",
@@ -119,6 +120,10 @@ const spec = {
 };
 
 writeFileSync(outPath, JSON.stringify(spec, null, 2));
+writeFileSync(
+  agentResourcePath,
+  JSON.stringify({ source: spec.source, types, globals, functions }),
+);
 
 const swiftArray = (values) => `[${values.map((value) => JSON.stringify(value)).join(", ")}]`;
 const generatedTypes = Object.values(types)
@@ -172,6 +177,7 @@ ${generatedTypes.join(",\n")}
 
 writeFileSync(testContractPath, testContract);
 console.log("wrote", outPath);
+console.log("wrote", agentResourcePath);
 console.log("wrote", testContractPath);
 console.log("types:", Object.keys(types).length);
 console.log("globals:", Object.keys(globals).length);
