@@ -1,6 +1,6 @@
 import Foundation
-import SwiftUI
 import UIKit
+import WidgetRender
 
 public enum StupidWidgetsWidgetStorage {
   public static let appGroupID = "group.net.stupidtech.stupidwidgets"
@@ -20,7 +20,7 @@ public enum StupidWidgetsWidgetStorage {
     guard let directory = scriptsDirectory else { throw CocoaError(.fileNoSuchFile) }
     return try FileManager.default
       .contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-      .filter { $0.pathExtension.lowercased() == "scriptable" }
+      .filter { $0.pathExtension.lowercased() == "widget" }
       .map { try JSONDecoder().decode(SharedWidgetScript.self, from: Data(contentsOf: $0)) }
       .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
   }
@@ -36,150 +36,6 @@ public enum StupidWidgetsWidgetStorage {
 public struct SharedWidgetScript: Decodable, Sendable {
   public let name: String
   public let script: String
-}
-
-public struct ScriptWidgetSnapshot: Sendable {
-  public let background: ScriptWidgetBackground
-  public let spacing: Double
-  public let padding: ScriptWidgetInsets
-  public let refreshAfterDate: Date?
-  public let elements: [ScriptWidgetElement]
-
-  public static func message(title: String, body: String) -> ScriptWidgetSnapshot {
-    ScriptWidgetSnapshot(
-      background: .color(
-        ScriptWidgetColor(red: 0.08, green: 0.09, blue: 0.11, alpha: 1)),
-      spacing: 8,
-      padding: .init(top: 14, leading: 14, bottom: 14, trailing: 14),
-      refreshAfterDate: nil,
-      elements: [
-        .text(
-          .init(
-            text: title, color: .white, font: .system(size: 17), opacity: 1,
-            lineLimit: 2, minimumScaleFactor: 1, alignment: .left)),
-        .text(
-          .init(
-            text: body, color: .gray, font: .system(size: 13), opacity: 1,
-            lineLimit: 4, minimumScaleFactor: 1, alignment: .left)),
-      ]
-    )
-  }
-}
-
-public struct ScriptWidgetInsets: Sendable {
-  public let top: Double
-  public let leading: Double
-  public let bottom: Double
-  public let trailing: Double
-}
-
-public enum ScriptWidgetBackground: Sendable {
-  case color(ScriptWidgetColor)
-  case gradient(ScriptWidgetGradient)
-}
-
-public struct ScriptWidgetGradient: Sendable {
-  public let colors: [ScriptWidgetColor]
-  public let locations: [Double]
-  public let startX: Double
-  public let startY: Double
-  public let endX: Double
-  public let endY: Double
-}
-
-public struct ScriptWidgetColor: Sendable {
-  public let red: Double
-  public let green: Double
-  public let blue: Double
-  public let alpha: Double
-
-  public static let white = ScriptWidgetColor(red: 1, green: 1, blue: 1, alpha: 1)
-  public static let gray = ScriptWidgetColor(red: 0.7, green: 0.72, blue: 0.75, alpha: 1)
-}
-
-public enum ScriptWidgetAlignment: Sendable {
-  case left, center, right
-}
-
-public indirect enum ScriptWidgetElement: Sendable {
-  case text(ScriptWidgetText)
-  case image(ScriptWidgetImage)
-  case spacer(Double)
-  case stack(ScriptWidgetStack)
-}
-
-public struct ScriptWidgetText: Sendable {
-  public let text: String
-  public let color: ScriptWidgetColor
-  public let font: ScriptWidgetFont
-  public let opacity: Double
-  public let lineLimit: Int
-  public let minimumScaleFactor: Double
-  public let alignment: ScriptWidgetAlignment
-}
-
-public struct ScriptWidgetFont: Sendable {
-  public let name: String?
-  public let size: Double
-  public let weight: Double
-  public let italic: Bool
-  public let monospaced: Bool
-  public let rounded: Bool
-  public let system: Bool
-
-  public static func system(size: Double) -> ScriptWidgetFont {
-    ScriptWidgetFont(
-      name: nil, size: size, weight: 0, italic: false, monospaced: false, rounded: false,
-      system: true)
-  }
-
-  @MainActor
-  public init(
-    font: UIFont?, systemWeight: Double? = nil, isMonospaced: Bool? = nil,
-    isRounded: Bool? = nil, isItalic: Bool? = nil
-  ) {
-    let font = font ?? UIFont.systemFont(ofSize: 17)
-    let traits =
-      font.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any]
-    name = font.fontName
-    size = Double(font.pointSize)
-    weight =
-      systemWeight
-      ?? (traits?[.weight] as? NSNumber)?.doubleValue
-      ?? 0
-    italic = isItalic ?? font.fontDescriptor.symbolicTraits.contains(.traitItalic)
-    monospaced = isMonospaced ?? font.fontDescriptor.symbolicTraits.contains(.traitMonoSpace)
-    rounded = isRounded ?? font.fontName.contains("Rounded")
-    system = font.fontName.hasPrefix(".")
-  }
-
-  private init(
-    name: String?, size: Double, weight: Double, italic: Bool, monospaced: Bool, rounded: Bool,
-    system: Bool
-  ) {
-    self.name = name
-    self.size = size
-    self.weight = weight
-    self.italic = italic
-    self.monospaced = monospaced
-    self.rounded = rounded
-    self.system = system
-  }
-}
-
-public struct ScriptWidgetImage: Sendable {
-  public let data: Data
-  public let width: Double?
-  public let height: Double?
-  public let opacity: Double
-  public let cornerRadius: Double
-  public let alignment: ScriptWidgetAlignment
-}
-
-public struct ScriptWidgetStack: Sendable {
-  public let horizontal: Bool
-  public let spacing: Double
-  public let elements: [ScriptWidgetElement]
 }
 
 public enum ScriptWidgetRunner {
@@ -203,7 +59,7 @@ public enum ScriptWidgetRunner {
   }
 
   @MainActor
-  private static func snapshot(widget: ListWidgetModel) -> ScriptWidgetSnapshot {
+  static func snapshot(widget: ListWidgetModel) -> ScriptWidgetSnapshot {
     ScriptWidgetSnapshot(
       background: background(widget),
       spacing: widget.spacing,
@@ -219,10 +75,10 @@ public enum ScriptWidgetRunner {
       return ScriptWidgetInsets(top: 14, leading: 14, bottom: 14, trailing: 14)
     }
     return ScriptWidgetInsets(
-      top: padding.top,
-      leading: padding.leading,
-      bottom: padding.bottom,
-      trailing: padding.trailing
+      top: CGFloat(padding.top),
+      leading: CGFloat(padding.leading),
+      bottom: CGFloat(padding.bottom),
+      trailing: CGFloat(padding.trailing)
     )
   }
 
@@ -238,6 +94,9 @@ public enum ScriptWidgetRunner {
           endX: gradient.endPoint.x,
           endY: gradient.endPoint.y
         ))
+    }
+    if let image = widget.backgroundImage?.image, let data = image.pngData() {
+      return .image(data)
     }
     return .color(
       color(widget.backgroundColor)
@@ -259,18 +118,15 @@ public enum ScriptWidgetRunner {
             isRounded: text.font?.isRounded,
             isItalic: text.font?.isItalic
           ),
-          opacity: text.textOpacity,
+          opacity: CGFloat(text.textOpacity),
           lineLimit: text.lineLimit,
-          minimumScaleFactor: text.minimumScaleFactor,
+          minimumScaleFactor: CGFloat(text.minimumScaleFactor),
           alignment: alignment(text.alignment)
         ))
     case let date as WidgetDateModel:
-      let formatter = DateFormatter()
-      formatter.dateStyle = date.dateStyle
-      formatter.timeStyle = date.timeStyle
       return .text(
         .init(
-          text: formatter.string(from: date.date),
+          text: dateLabel(date),
           color: color(date.textColor) ?? .white,
           font: ScriptWidgetFont(
             font: date.font?.font,
@@ -279,9 +135,9 @@ public enum ScriptWidgetRunner {
             isRounded: date.font?.isRounded,
             isItalic: date.font?.isItalic
           ),
-          opacity: date.textOpacity,
+          opacity: CGFloat(date.textOpacity),
           lineLimit: date.lineLimit,
-          minimumScaleFactor: date.minimumScaleFactor,
+          minimumScaleFactor: CGFloat(date.minimumScaleFactor),
           alignment: alignment(date.alignment)
         ))
     case let image as WidgetImageModel:
@@ -289,10 +145,11 @@ public enum ScriptWidgetRunner {
       return .image(
         .init(
           data: data,
-          width: image.imageSize?.width,
-          height: image.imageSize?.height,
-          opacity: image.imageOpacity,
-          cornerRadius: image.cornerRadius,
+          width: image.imageSize.map { CGFloat($0.width) },
+          height: image.imageSize.map { CGFloat($0.height) },
+          opacity: CGFloat(image.imageOpacity),
+          cornerRadius: CGFloat(image.cornerRadius),
+          fills: image.contentMode == .fill,
           alignment: alignment(image.alignment)
         ))
     case let spacer as WidgetSpacerModel:
@@ -301,12 +158,30 @@ public enum ScriptWidgetRunner {
       return .stack(
         .init(
           horizontal: stack.layout == .horizontal,
-          spacing: stack.spacing,
+          spacing: CGFloat(stack.spacing),
           elements: stack.children.compactMap(element)
         ))
     default:
       return nil
     }
+  }
+
+  @MainActor
+  private static func dateLabel(_ date: WidgetDateModel) -> String {
+    if date.isRelative {
+      return RelativeDateTimeFormatter().localizedString(for: date.date, relativeTo: Date())
+    }
+    if date.isOffset || date.isTimer {
+      let comps = Calendar.current.dateComponents(
+        [.hour, .minute, .second], from: Date(), to: date.date)
+      let format = date.isTimer ? "%02d:%02d:%02d" : "%d:%02d:%02d"
+      return String(
+        format: format, abs(comps.hour ?? 0), abs(comps.minute ?? 0), abs(comps.second ?? 0))
+    }
+    let formatter = DateFormatter()
+    formatter.dateStyle = date.dateStyle
+    formatter.timeStyle = date.timeStyle
+    return formatter.string(from: date.date)
   }
 
   @MainActor
@@ -326,141 +201,22 @@ public enum ScriptWidgetRunner {
   }
 }
 
-public struct ScriptWidgetSnapshotView: View {
-  private let snapshot: ScriptWidgetSnapshot
-
-  public init(snapshot: ScriptWidgetSnapshot) {
-    self.snapshot = snapshot
-  }
-
-  public var body: some View {
-    ZStack {
-      background
-      VStack(alignment: .leading, spacing: snapshot.spacing) {
-        ForEach(Array(snapshot.elements.enumerated()), id: \.offset) { _, element in
-          elementView(element, parentAxis: .vertical)
-        }
-      }
-      .padding(.top, snapshot.padding.top)
-      .padding(.leading, snapshot.padding.leading)
-      .padding(.bottom, snapshot.padding.bottom)
-      .padding(.trailing, snapshot.padding.trailing)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-  }
-
-  @ViewBuilder
-  private var background: some View {
-    switch snapshot.background {
-    case .color(let value):
-      color(value)
-    case .gradient(let value):
-      LinearGradient(
-        gradient: gradient(value),
-        startPoint: UnitPoint(x: value.startX, y: value.startY),
-        endPoint: UnitPoint(x: value.endX, y: value.endY)
-      )
-    }
-  }
-
-  private func gradient(_ value: ScriptWidgetGradient) -> Gradient {
-    let colors = value.colors.map(color)
-    guard value.locations.count == colors.count else { return Gradient(colors: colors) }
-    return Gradient(
-      stops: zip(colors, value.locations).map { color, location in
-        Gradient.Stop(color: color, location: location)
-      })
-  }
-
-  private func elementView(_ element: ScriptWidgetElement, parentAxis: Axis) -> AnyView {
-    switch element {
-    case .text(let text):
-      let view = Text(text.text)
-        .font(font(text))
-        .foregroundStyle(color(text.color))
-        .opacity(text.opacity)
-        .lineLimit(text.lineLimit > 0 ? text.lineLimit : nil)
-        .minimumScaleFactor(text.minimumScaleFactor)
-      guard parentAxis == .vertical else { return AnyView(view) }
-      return AnyView(
-        view.frame(maxWidth: .infinity, alignment: frameAlignment(text.alignment)))
-    case .image(let image):
-      guard let uiImage = UIImage(data: image.data) else { return AnyView(EmptyView()) }
-      let width = image.width.map { CGFloat($0) }
-      let height = image.height.map { CGFloat($0) }
-      let view = Image(uiImage: uiImage)
-        .resizable()
-        .scaledToFit()
-        .frame(width: width, height: height)
-        .opacity(image.opacity)
-        .clipShape(RoundedRectangle(cornerRadius: image.cornerRadius))
-      guard parentAxis == .vertical else { return AnyView(view) }
-      return AnyView(
-        view.frame(maxWidth: .infinity, alignment: frameAlignment(image.alignment))
-      )
-    case .spacer(let length):
-      guard length > 0 else { return AnyView(Spacer(minLength: 0)) }
-      return parentAxis == .horizontal
-        ? AnyView(Spacer().frame(width: length)) : AnyView(Spacer().frame(height: length))
-    case .stack(let stack):
-      let view: AnyView
-      if stack.horizontal {
-        view = AnyView(
-          HStack(spacing: stack.spacing) {
-            ForEach(Array(stack.elements.enumerated()), id: \.offset) { _, element in
-              elementView(element, parentAxis: .horizontal)
-            }
-          })
-      } else {
-        view = AnyView(
-          VStack(alignment: .leading, spacing: stack.spacing) {
-            ForEach(Array(stack.elements.enumerated()), id: \.offset) { _, element in
-              elementView(element, parentAxis: .vertical)
-            }
-          })
-      }
-      guard parentAxis == .vertical else { return view }
-      return AnyView(view.frame(maxWidth: .infinity, alignment: .leading))
-    }
-  }
-
-  private func font(_ text: ScriptWidgetText) -> Font {
-    if !text.font.system, let name = text.font.name {
-      let font = Font.custom(name, size: text.font.size)
-      return text.font.italic ? font.italic() : font
-    }
-    var font = Font.system(
-      size: text.font.size,
-      weight: weight(text.font.weight),
-      design: text.font.monospaced ? .monospaced : (text.font.rounded ? .rounded : .default)
+extension ScriptWidgetFont {
+  @MainActor
+  public init(
+    font: UIFont?, systemWeight: Double? = nil, isMonospaced: Bool? = nil,
+    isRounded: Bool? = nil, isItalic: Bool? = nil
+  ) {
+    let font = font ?? UIFont.systemFont(ofSize: 17)
+    let traits = font.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any]
+    self.init(
+      name: font.fontName,
+      size: Double(font.pointSize),
+      weight: systemWeight ?? (traits?[.weight] as? NSNumber)?.doubleValue ?? 0,
+      italic: isItalic ?? font.fontDescriptor.symbolicTraits.contains(.traitItalic),
+      monospaced: isMonospaced ?? font.fontDescriptor.symbolicTraits.contains(.traitMonoSpace),
+      rounded: isRounded ?? font.fontName.contains("Rounded"),
+      system: font.fontName.hasPrefix(".")
     )
-    if text.font.italic { font = font.italic() }
-    return font
-  }
-
-  private func weight(_ value: Double) -> Font.Weight {
-    switch value {
-    case ..<(-0.7): .ultraLight
-    case ..<(-0.5): .thin
-    case ..<(-0.2): .light
-    case ..<0.1: .regular
-    case ..<0.265: .medium
-    case ..<0.35: .semibold
-    case ..<0.48: .bold
-    case ..<0.59: .heavy
-    default: .black
-    }
-  }
-
-  private func color(_ value: ScriptWidgetColor) -> Color {
-    Color(red: value.red, green: value.green, blue: value.blue, opacity: value.alpha)
-  }
-
-  private func frameAlignment(_ value: ScriptWidgetAlignment) -> Alignment {
-    switch value {
-    case .left: .leading
-    case .center: .center
-    case .right: .trailing
-    }
   }
 }

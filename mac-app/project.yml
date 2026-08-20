@@ -1,0 +1,39 @@
+name: StupidWidgetsMac
+options:
+  bundleIdPrefix: net.stupidtech
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "14.0"
+  createIntermediateGroups: true
+packages:
+  StupidWidgetsPackage:
+    path: ../stupid-widgets
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: ""
+targets:
+  StupidWidgetsMac:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - Sources/StupidWidgetsMac
+    dependencies:
+      - package: StupidWidgetsPackage
+        product: StupidWidgetsCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.stupidtech.stupidwidgets
+        PRODUCT_NAME: "$(TARGET_NAME)"
+        CODE_SIGN_ENTITLEMENTS: StupidWidgetsMac.entitlements
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: "stupid widgets"
+        INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.productivity"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: YES
+        DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER: NO
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Automatic
+    scheme:
+      testTargets: []

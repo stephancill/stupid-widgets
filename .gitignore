@@ -3,3 +3,7 @@ BetterScriptable/
 .env.local
 node_modules/
 .DS_Store
+
+# Mac Catalyst app (xcodegen-generated workspace/user data)
+/mac-app/StupidWidgetsMac.xcodeproj/project.xcworkspace/
+/mac-app/StupidWidgetsMac.xcodeproj/xcuserdata/

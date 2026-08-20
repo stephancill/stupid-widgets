@@ -6,6 +6,7 @@ final class ChatViewModel: ObservableObject {
   @Published var messages: [AIChatMessage] = []
   @Published var isStreaming = false
   @Published var streamingText = ""
+  @Published var currentTool: String?
   @Published var errorMessage: String?
   let auth = OpenAIAuth.shared
   private var streamingTask: Task<Void, Never>?
@@ -17,6 +18,7 @@ final class ChatViewModel: ObservableObject {
     messages.append(AIChatMessage(role: "user", content: prompt))
     isStreaming = true
     streamingText = ""
+    currentTool = nil
     errorMessage = nil
     let client = AgentAIClient(auth: auth)
     streamingTask = Task {
@@ -31,6 +33,8 @@ final class ChatViewModel: ObservableObject {
           case .scriptUpdated(let script):
             changedScript = true
             onInsert(script)
+          case .toolCalled(let name):
+            currentTool = name
           }
         }
         messages.append(AIChatMessage(role: "assistant", content: accumulated))
@@ -47,6 +51,7 @@ final class ChatViewModel: ObservableObject {
       }
       isStreaming = false
       streamingText = ""
+      currentTool = nil
       streamingTask = nil
       onFinish(changedScript)
     }
@@ -57,6 +62,7 @@ final class ChatViewModel: ObservableObject {
     streamingTask = nil
     isStreaming = false
     streamingText = ""
+    currentTool = nil
   }
 
   func extractCodeBlock(from text: String) -> String? {

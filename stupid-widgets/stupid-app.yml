@@ -7,8 +7,6 @@ entitlementsPath: StupidWidgets.entitlements
 iconPath: Resources/AppIcon.appiconset/Icon-1024.png
 resources:
   - Resources/scriptable-api.json
-  - "Resources/Hello Widget.scriptable"
-  - "Resources/Read MacStories.scriptable"
 extensions:
   - product: StupidWidgetsWidgetExtension
     bundleID: net.stupidtech.stupidwidgets.widget

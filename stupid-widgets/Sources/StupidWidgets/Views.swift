@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import WidgetRender
 
 public struct StupidWidgetsRootView: View {
   @StateObject private var store = ScriptStore()
@@ -16,7 +17,6 @@ public struct StupidWidgetsRootView: View {
 
 struct ScriptListView: View {
   @EnvironmentObject private var store: ScriptStore
-  @State private var isCreating = false
   @State private var renaming: Script?
   @State private var renameText = ""
   @State private var navigationPath: [UUID] = []
@@ -30,6 +30,21 @@ struct ScriptListView: View {
         }
       }
       .contentMargins(.top, 16, for: .scrollContent)
+      .overlay {
+        if store.scripts.isEmpty {
+          ContentUnavailableView {
+            Label("No Widgets", systemImage: "square.grid.3x3")
+          } description: {
+            Text("Create a widget script to get started.")
+          } actions: {
+            Button {
+              createAndOpenWidget()
+            } label: {
+              Label("New Widget", systemImage: "plus")
+            }
+          }
+        }
+      }
       .navigationTitle("Widgets")
       .navigationDestination(for: UUID.self) { id in
         if let script = store.script(id: id) {
@@ -41,44 +56,31 @@ struct ScriptListView: View {
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
           Button {
-            renameText = "Untitled Widget"
-            isCreating = true
-            focusNameField(selectAll: true)
+            createAndOpenWidget()
           } label: {
             Image(systemName: "plus")
           }
         }
       }
       .alert(
-        isCreating ? "New Widget" : "Rename Widget",
+        "Rename Widget",
         isPresented: Binding(
-          get: { isCreating || renaming != nil },
-          set: {
-            if !$0 {
-              isCreating = false
-              renaming = nil
-            }
-          }
+          get: { renaming != nil },
+          set: { if !$0 { renaming = nil } }
         )
       ) {
         TextField("Name", text: $renameText)
           .focused($isNameFieldFocused)
         Button("Cancel", role: .cancel) {
-          isCreating = false
           renaming = nil
         }
-        Button(isCreating ? "Create" : "Rename") {
-          if isCreating {
-            if let widget = store.create(name: renameText) {
-              navigationPath.append(widget.id)
-            }
-          } else if let script = renaming {
+        Button("Rename") {
+          if let script = renaming {
             store.rename(id: script.id, to: renameText)
           }
-          isCreating = false
           renaming = nil
         }
-        .disabled(isCreating && renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
       }
       .alert(
         "Widget Error",
@@ -124,6 +126,12 @@ struct ScriptListView: View {
       ShareLink(item: script.fileURL) {
         Label("Export", systemImage: "square.and.arrow.up")
       }
+    }
+  }
+
+  private func createAndOpenWidget() {
+    if let widget = store.create(name: "Untitled Widget") {
+      navigationPath.append(widget.id)
     }
   }
 
@@ -230,6 +238,7 @@ struct EditorView: View {
     self.script = script
     _source = State(initialValue: script.source)
     _execution = StateObject(wrappedValue: ScriptExecution(scriptName: script.name))
+    _previewFamily = State(initialValue: WidgetPreviewFamily(rawValue: script.previewFamily) ?? .medium)
   }
 
   var body: some View {
@@ -276,19 +285,10 @@ struct EditorView: View {
       }
     }
     .safeAreaInset(edge: .bottom) {
-      ChangePromptField(
-        prompt: $prompt,
-        canUndo: !undoSources.isEmpty,
-        isWorking: chat.isStreaming || auth.isSigningIn,
-        onUndo: undoChanges,
-        onSubmit: submitPrompt,
-        onCancel: cancelPrompt,
-        onRerun: run
-      )
-      .padding(.horizontal, 28)
-      .padding(.top, 10)
-      .padding(.bottom, 8)
-      .background(.black.opacity(0.001))
+      statusAccessory
+        .padding(.horizontal, 28)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
     }
     .alert("Rename Widget", isPresented: $isEditingTitle) {
       TextField("Name", text: $titleText)
@@ -299,7 +299,10 @@ struct EditorView: View {
       RuntimePresentationHost(runtime: execution.runtime, presentsWidgetPreviews: false)
     )
     .onChange(of: source) { _, newValue in store.updateSource(id: script.id, source: newValue) }
-    .onChange(of: previewFamily) { _, _ in run() }
+    .onChange(of: previewFamily) { _, _ in
+      store.updatePreviewFamily(id: script.id, family: previewFamily.rawValue)
+      run()
+    }
     .alert(
       "Assistant Error",
       isPresented: Binding(
@@ -387,6 +390,71 @@ struct EditorView: View {
     guard let previousSource = undoSources.popLast() else { return }
     source = previousSource
     run()
+  }
+
+  @ViewBuilder
+  private var statusAccessory: some View {
+    if auth.isSignedIn {
+      VStack(spacing: 6) {
+        if chat.isStreaming, let tool = chat.currentTool {
+          toolStatus(tool)
+        }
+        ChangePromptField(
+          prompt: $prompt,
+          canUndo: !undoSources.isEmpty,
+          isWorking: chat.isStreaming || auth.isSigningIn,
+          onUndo: undoChanges,
+          onSubmit: submitPrompt,
+          onCancel: cancelPrompt,
+          onRerun: run
+        )
+      }
+    } else {
+      HStack(spacing: 10) {
+        connectButton
+        reloadButton
+      }
+    }
+  }
+
+  private func toolStatus(_ tool: String) -> some View {
+    Label(tool, systemImage: "hammer")
+      .font(.caption)
+      .foregroundStyle(.secondary)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.horizontal, 4)
+  }
+
+  private var connectButton: some View {
+    Button(action: { auth.signIn() }) {
+      Text("Edit with ChatGPT")
+        .font(.subheadline)
+        .frame(maxWidth: .infinity)
+        .frame(height: 54)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay {
+          Capsule()
+            .stroke(.secondary.opacity(0.25), lineWidth: 1)
+        }
+    }
+    .buttonStyle(.plain)
+    .disabled(auth.isSigningIn)
+    .accessibilityLabel("Edit with ChatGPT")
+  }
+
+  private var reloadButton: some View {
+    Button(action: run) {
+      Image(systemName: "arrow.clockwise")
+        .font(.title3)
+    }
+    .frame(width: 54, height: 54)
+    .background(.ultraThinMaterial, in: Circle())
+    .overlay {
+      Circle()
+        .stroke(.secondary.opacity(0.25), lineWidth: 1)
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("Rerun widget script")
   }
 
   private var scriptName: String {
@@ -553,7 +621,8 @@ private struct WidgetPreviewCanvas: View {
   let family: WidgetPreviewFamily
 
   var body: some View {
-    WidgetRenderer(widget: widget, family: family.rawValue)
+    ScriptWidgetSnapshotView(snapshot: ScriptWidgetRunner.snapshot(widget: widget))
+      .clipShape(RoundedRectangle(cornerRadius: family == .medium ? 22 : 18))
       .frame(width: family.size.width, height: family.size.height)
   }
 }

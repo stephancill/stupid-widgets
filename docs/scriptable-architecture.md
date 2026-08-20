@@ -249,7 +249,7 @@ iterate conversationally with the full editor contents as context.
 - Source remains available through the detail view's explicit Edit/Preview control.
 
 ### Build order
-1. Scaffold iOS app (xtool, SwiftUI + JavaScriptCore bridge).
+1. Scaffold iOS app (SwiftUI + JavaScriptCore bridge).
 2. Implement the API-compat runtime per `docs/scriptable-api.json`.
 3. Client-side ChatGPT OAuth and Responses streaming.
 4. Inline AI prompt + editor wiring.

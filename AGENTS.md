@@ -33,3 +33,6 @@ iOS app first, using xtool/SwiftUI with a JavaScriptCore bridge.
 4. Commit with conventional commits (`fix:`, `feat:`, `chore:`...).
 5. Before archiving or uploading a release, increment `CFBundleVersion` in both
    `stupid-widgets/Info.plist` and `stupid-widgets/WidgetExtension-Info.plist` to the same value.
+6. After making app-affecting changes, always build, run the simulator tests, and deploy to the
+   iPhone via: `stupid-app run --usb --sudo /usr/bin/sudo --udid 00008130-001C4CA030A1401C`.
+7. Domain: widgets are `.widget` files; the only bundled resource is `Resources/scriptable-api.json`.

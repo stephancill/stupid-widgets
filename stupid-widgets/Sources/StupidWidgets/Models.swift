@@ -1,5 +1,18 @@
+import CryptoKit
 import Foundation
 import WidgetKit
+
+private enum UbiquityDirectory {
+  static func scriptsDirectory() -> URL? {
+    guard
+      let container = FileManager.default.url(forUbiquityContainerIdentifier: nil)
+    else { return nil }
+    let directory = container.appendingPathComponent("Documents", isDirectory: true)
+      .appendingPathComponent("Scripts", isDirectory: true)
+    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    return directory
+  }
+}
 
 struct Script: Identifiable, Hashable {
   let id: UUID
@@ -8,6 +21,7 @@ struct Script: Identifiable, Hashable {
   var iconGlyph: String
   var source: String
   var alwaysRunInApp: Bool
+  var previewFamily: String
   var shareSheetInputs: [String]
   var fileURL: URL
 
@@ -27,27 +41,44 @@ struct Script: Identifiable, Hashable {
     var icon: Icon
     var script: String
     var alwaysRunInApp: Bool
+    var previewFamily: String?
     var shareSheetInputs: [String]
+    var id: String?
 
     enum CodingKeys: String, CodingKey {
       case name, icon, script
       case alwaysRunInApp = "always_run_in_app"
+      case previewFamily = "preview_family"
       case shareSheetInputs = "share_sheet_inputs"
+      case id
     }
   }
 
   static func fromFile(_ url: URL) throws -> Script {
     let value = try JSONDecoder().decode(FileContents.self, from: Data(contentsOf: url))
+    let id = value.id.flatMap(UUID.init(uuidString:)) ?? stableID(for: url.lastPathComponent)
     return Script(
-      id: UUID(),
+      id: id,
       name: value.name,
       iconColor: value.icon.color,
       iconGlyph: value.icon.glyph,
       source: value.script,
       alwaysRunInApp: value.alwaysRunInApp,
+      previewFamily: value.previewFamily ?? "medium",
       shareSheetInputs: value.shareSheetInputs,
       fileURL: url
     )
+  }
+
+  static func stableID(for name: String) -> UUID {
+    var bytes = [UInt8](repeating: 0, count: 16)
+    let digest = Array(SHA256.hash(data: Data(name.utf8)))
+    for index in 0..<16 {
+      bytes[index] = digest[index]
+    }
+    bytes[6] = (bytes[6] & 0x0F) | 0x40
+    bytes[8] = (bytes[8] & 0x3F) | 0x80
+    return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7], bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
   }
 
   func encoded() throws -> Data {
@@ -56,7 +87,9 @@ struct Script: Identifiable, Hashable {
       icon: .init(color: iconColor, glyph: iconGlyph),
       script: source,
       alwaysRunInApp: alwaysRunInApp,
-      shareSheetInputs: shareSheetInputs
+      previewFamily: previewFamily,
+      shareSheetInputs: shareSheetInputs,
+      id: id.uuidString
     )
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
@@ -70,11 +103,35 @@ final class ScriptStore: ObservableObject {
   @Published var errorMessage: String?
 
   private let directory: URL
+  private var ubiquityQuery: NSMetadataQuery?
+  private var ubiquityObserver: NSObjectProtocol?
 
   init(directory: URL? = nil) {
-    self.directory =
-      directory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    if let directory {
+      self.directory = directory
+    } else if let ubiquityDirectory = UbiquityDirectory.scriptsDirectory() {
+      self.directory = ubiquityDirectory
+      observeUbiquityChanges()
+    } else {
+      self.directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    }
     reload()
+  }
+
+  private func observeUbiquityChanges() {
+    let query = NSMetadataQuery()
+    query.searchScopes = [NSMetadataQueryUbiquitousDocumentsScope]
+    query.predicate = NSPredicate(
+      format: "%K ENDSWITH '.widget'", "kMDItemFSName")
+    ubiquityObserver = NotificationCenter.default.addObserver(
+      forName: .NSMetadataQueryDidUpdate,
+      object: query,
+      queue: .main
+    ) { [weak self] _ in
+      Task { @MainActor in self?.reload() }
+    }
+    ubiquityQuery = query
+    query.start()
   }
 
   func reload() {
@@ -84,7 +141,7 @@ final class ScriptStore: ObservableObject {
       let urls = try FileManager.default.contentsOfDirectory(
         at: directory, includingPropertiesForKeys: [.contentModificationDateKey]
       )
-      .filter { $0.pathExtension.lowercased() == "scriptable" }
+      .filter { $0.pathExtension.lowercased() == "widget" }
       scripts = try urls.map(Script.fromFile)
       sort()
       syncWidgetScripts()
@@ -104,12 +161,38 @@ final class ScriptStore: ObservableObject {
       let uniqueName = try availableName(startingWith: name)
       let url = fileURL(for: uniqueName)
       let script = Script(
-        id: UUID(),
+        id: Script.stableID(for: "\(uniqueName).widget"),
         name: uniqueName,
         iconColor: "deep-blue",
         iconGlyph: "doc.text",
-        source: "// \(uniqueName)\n",
+        source: """
+          // A simple widget that shows the date and time.
+          let widget = new ListWidget()
+          widget.backgroundColor = new Color("#1b1b2f")
+          let gradient = new LinearGradient()
+          gradient.colors = [new Color("#16222A"), new Color("#3A6073")]
+          gradient.locations = [0, 1]
+          widget.backgroundGradient = gradient
+
+          let title = widget.addText("Hello, world!")
+          title.font = Font.boldSystemFont(16)
+          title.textColor = Color.white()
+
+          widget.addSpacer(8)
+
+          let dateText = widget.addDate(new Date())
+          dateText.font = Font.mediumSystemFont(13)
+          dateText.textColor = Color.white()
+          dateText.textOpacity = 0.85
+          dateText.applyTimeStyle()
+
+          dateText.applyDateStyle()
+
+          Script.setWidget(widget)
+          Script.complete()
+          """,
         alwaysRunInApp: false,
+        previewFamily: "medium",
         shareSheetInputs: [],
         fileURL: url
       )
@@ -140,6 +223,20 @@ final class ScriptStore: ObservableObject {
 
   func reloadWidgets() {
     WidgetCenter.shared.reloadAllTimelines()
+  }
+
+  func updatePreviewFamily(id: UUID, family: String) {
+    guard let index = scripts.firstIndex(where: { $0.id == id }), scripts[index].previewFamily != family
+    else { return }
+    var updated = scripts[index]
+    updated.previewFamily = family
+    do {
+      try write(updated)
+      scripts[index] = updated
+      errorMessage = nil
+    } catch {
+      errorMessage = error.localizedDescription
+    }
   }
 
   func rename(id: UUID, to proposedName: String) {
@@ -204,7 +301,7 @@ final class ScriptStore: ObservableObject {
   }
 
   private func seedBundledScripts() throws {
-    for source in Bundle.main.urls(forResourcesWithExtension: "scriptable", subdirectory: nil) ?? []
+    for source in Bundle.main.urls(forResourcesWithExtension: "widget", subdirectory: nil) ?? []
     {
       let destination = directory.appendingPathComponent(source.lastPathComponent)
       if !FileManager.default.fileExists(atPath: destination.path) {
@@ -266,7 +363,7 @@ final class ScriptStore: ObservableObject {
   }
 
   private func fileURL(for name: String) -> URL {
-    directory.appendingPathComponent(name).appendingPathExtension("scriptable")
+    directory.appendingPathComponent(name).appendingPathExtension("widget")
   }
 
   private func sort() {

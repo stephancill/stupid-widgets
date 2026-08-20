@@ -14,13 +14,21 @@ let package = Package(
       targets: ["StupidWidgetsApp"]
     ),
     .library(
+      name: "StupidWidgetsCore",
+      targets: ["StupidWidgetsCore"]
+    ),
+    .library(
       name: "StupidWidgetsWidgetExtension",
       targets: ["StupidWidgetsWidgetExtension"]
     ),
   ],
   targets: [
     .target(
+      name: "WidgetRender"
+    ),
+    .target(
       name: "StupidWidgetsCore",
+      dependencies: ["WidgetRender"],
       path: "Sources/StupidWidgets"
     ),
     .target(
@@ -29,11 +37,11 @@ let package = Package(
     ),
     .target(
       name: "StupidWidgetsWidgetExtension",
-      dependencies: ["StupidWidgetsCore"]
+      dependencies: ["StupidWidgetsCore", "WidgetRender"]
     ),
     .testTarget(
       name: "StupidWidgetsTests",
-      dependencies: ["StupidWidgetsCore"]
+      dependencies: ["StupidWidgetsCore", "WidgetRender"]
     ),
   ]
 )

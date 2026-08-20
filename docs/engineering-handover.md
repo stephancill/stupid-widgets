@@ -1,17 +1,17 @@
 # stupid widgets Engineering Handover
 
-Last updated: 2026-08-15
+Last updated: 2026-08-20
 
 ## Current state
 
-stupid widgets is an xtool/SwiftUI iOS app that runs Scriptable-style JavaScript through
+stupid widgets is a SwiftUI iOS app that runs Scriptable-style JavaScript through
 JavaScriptCore. The app now has a persistent Documents-backed script library, an editor, fresh
 per-run JavaScript contexts, native preview/table/alert presentation, and a client-side ChatGPT AI
 assistant. The former Cloudflare/OpenRouter Worker source has been removed.
 
 Verified on `NoFeedSocial iOS 26.3` (`6552DF1D-95CE-48E3-801F-8F80F0AA8D29`):
 
-- The app builds, installs, and launches with xtool.
+- The app builds, installs, and launches on the preferred simulator.
 - Missing bundled samples are seeded into Documents on startup and edits remain across relaunches.
 - Create, rename, delete, import, export, and editor autosave are implemented.
 - `Hello Widget` runs through the repaired bridge and presents a native widget preview.
@@ -24,7 +24,7 @@ Verified on `NoFeedSocial iOS 26.3` (`6552DF1D-95CE-48E3-801F-8F80F0AA8D29`):
   different scripts.
 - Sixteen API-conformance/AI-tool/module/bridge/runtime/persistence tests execute and pass on the
   preferred simulator through the Swift package's generated Xcode scheme.
-- Signed device builds persist OAuth and Scriptable `Keychain` values in Keychain Services. xtool's
+- Signed device builds persist OAuth and Scriptable `Keychain` values in Keychain Services. The
   pseudo-signed simulator app receives `errSecMissingEntitlement`, so both use isolated,
   development-only UserDefaults records under `targetEnvironment(simulator)`.
 
@@ -55,16 +55,21 @@ Scriptable bundle is under ignored `third-party/scriptable/` and must not be com
 ├── AGENTS.md
 ├── docs/
 ├── tools/generate-api-spec.mjs
+├── tools/generate-api-spec.mjs
 ├── third-party/scriptable/                 # ignored upstream extraction
+├── mac-app/                                # Catalyst Mac app (xcodegen)
+│   ├── project.yml                         # regenerate StupidWidgetsMac.xcodeproj via `xcodegen generate`
+│   └── Sources/StupidWidgetsMac/
 └── stupid-widgets/
     ├── Package.swift
     ├── Info.plist
-    ├── xtool.yml
+    ├── stupid-app.yml
     ├── Resources/
+    ├── Sources/WidgetRender/             # shared Mac-clean snapshot types + view
     ├── Sources/StupidWidgets/             # StupidWidgetsCore
     ├── Sources/StupidWidgetsApp/          # isolated SwiftUI @main entry
     ├── Sources/StupidWidgetsWidgetExtension/
-    ├── WidgetMetadata/Metadata.appintents/ # generated App Intent metadata packaged by xtool
+    ├── WidgetMetadata/Metadata.appintents/ # generated App Intent metadata (packaged as an extension resource)
     └── Tests/StupidWidgetsTests/
 ```
 
@@ -79,9 +84,8 @@ repository without locating the authoritative repository.
 From `stupid-widgets/`:
 
 ```sh
-xtool dev run --simulator \
-  -u 6552DF1D-95CE-48E3-801F-8F80F0AA8D29 \
-  --no-attach --no-logs --launch-timeout 300
+stupid-app run --simulator \
+  --udid 6552DF1D-95CE-48E3-801F-8F80F0AA8D29
 ```
 
 Compile the simulator test target without invoking the currently un-linkable standalone runner:
@@ -103,17 +107,17 @@ set -o pipefail && xcodebuild test \
 
 Latest verification results:
 
-- xtool app build, installation, and launch: passed without compiler warnings.
+- App build, installation, and launch on the preferred simulator: passed without compiler warnings.
 - `StupidWidgetsTests` simulator target compilation: passed.
 - Simulator-hosted `xcodebuild test`: sixteen tests passed.
 - Standalone `swift test` with an iOS triple builds and links, but SwiftPM then attempts to load the
   iOS test bundle in the macOS host process. Use the simulator-hosted `xcodebuild test` command.
 
-Do not package a top-level directory named `Resources`; xtool/Foundation then treats the generated
-app as a legacy bundle and installation fails with `Missing bundle ID`. Keep the two resources
-listed individually in `xtool.yml`.
+Do not package a top-level directory named `Resources`; the build tooling/Foundation then treats
+the generated app as a legacy bundle and installation fails with `Missing bundle ID`. Keep the two
+resources listed individually in `stupid-app.yml`.
 
-If a cancelled build appears locked, inspect `xtool`, `swift-build`, `swift-driver`, and
+If a cancelled build appears locked, inspect `swift-build`, `swift-driver`, and
 `swift-frontend` process command lines and terminate only processes belonging to this project.
 
 ## Script library
@@ -189,7 +193,7 @@ no known source URL, and iCloud/app-group search roots and a populated `module.l
   Screen widget instance stores its own selection, so multiple instances can run different scripts.
 - Small, medium, and large system families are registered. Accessory families remain absent.
 
-xtool does not run `appintentsmetadataprocessor`. The generated
+The build does not run `appintentsmetadataprocessor`. The generated
 `WidgetMetadata/Metadata.appintents` directory is therefore packaged explicitly as an extension
 resource. Regenerate it with an Xcode build of the `StupidWidgetsWidgetExtension` scheme whenever
 `SelectScriptIntent`, `ScriptEntity`, or `ScriptQuery` changes, then replace the checked-in metadata.
@@ -236,7 +240,7 @@ Responses tool loop:
   code at `https://auth.openai.com/oauth/token`.
 - On signed devices, credentials are persisted as one Keychain record with
   `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
-- On xtool's pseudo-signed simulator, OAuth credentials use a development-only UserDefaults record
+- On the pseudo-signed simulator, OAuth credentials use a development-only UserDefaults record
   because Security.framework returns `errSecMissingEntitlement` (`-34018`). An attempted explicit
   access-group entitlement made the pseudo-signed app fail to launch and was removed.
 - Access tokens refresh five minutes before expiry, preserving the previous refresh token when the

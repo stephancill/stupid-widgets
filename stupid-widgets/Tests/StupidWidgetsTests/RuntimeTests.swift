@@ -1,4 +1,5 @@
 import UIKit
+import WidgetRender
 import XCTest
 
 @testable import StupidWidgetsCore

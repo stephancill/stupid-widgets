@@ -3,6 +3,7 @@ import Foundation
 enum ScriptAgentEvent {
   case textDelta(String)
   case scriptUpdated(String)
+  case toolCalled(String)
 }
 
 struct ScriptAgentToolOutput {
@@ -224,6 +225,7 @@ struct AgentAIClient {
 
             input.append(contentsOf: result.reasoningItems)
             for call in result.calls {
+              continuation.yield(.toolCalled(call.name))
               input.append([
                 "type": "function_call",
                 "call_id": call.callID,

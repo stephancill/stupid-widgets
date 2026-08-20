@@ -361,20 +361,21 @@ final class OpenAIAuth: ObservableObject {
     #if targetEnvironment(simulator)
       UserDefaults.standard.set(data, forKey: service)
     #else
-      let query: [String: Any] = [
+      let common: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
         kSecAttrService as String: service,
         kSecAttrAccount as String: account,
+        kSecAttrSynchronizable as String: kCFBooleanTrue as Any,
+        kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
       ]
+      let query: [String: Any] = common
       let status = SecItemUpdate(
         query as CFDictionary,
         [kSecValueData as String: data] as CFDictionary
       )
       if status == errSecItemNotFound {
-        var item = query
+        var item = common
         item[kSecValueData as String] = data
-        item[kSecAttrAccessible as String] =
-          kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let addStatus = SecItemAdd(item as CFDictionary, nil)
         guard addStatus == errSecSuccess else { throw AIClientError.keychain(addStatus) }
       } else if status != errSecSuccess {
@@ -392,6 +393,7 @@ final class OpenAIAuth: ObservableObject {
         kSecClass as String: kSecClassGenericPassword,
         kSecAttrService as String: service,
         kSecAttrAccount as String: account,
+        kSecAttrSynchronizable as String: kCFBooleanTrue as Any,
         kSecReturnData as String: true,
         kSecMatchLimit as String: kSecMatchLimitOne,
       ]

@@ -2,6 +2,7 @@ import AppIntents
 import StupidWidgetsCore
 import SwiftUI
 import WidgetKit
+import WidgetRender
 
 @main
 struct StupidWidgetsWidgetBundle: WidgetBundle {

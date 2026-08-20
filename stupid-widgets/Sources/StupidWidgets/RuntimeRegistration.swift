@@ -787,7 +787,7 @@ extension JSRuntime {
 
     let source: String
     do {
-      if url.pathExtension.lowercased() == "scriptable" {
+      if url.pathExtension.lowercased() == "widget" {
         source = try Script.fromFile(url).source
       } else {
         source = try String(contentsOf: url, encoding: .utf8)
@@ -853,10 +853,10 @@ extension JSRuntime {
       } else {
         candidates.append(base)
         candidates.append(base.appendingPathExtension("js"))
-        candidates.append(base.appendingPathExtension("scriptable"))
+        candidates.append(base.appendingPathExtension("widget"))
       }
       candidates.append(base.appendingPathComponent("index.js"))
-      candidates.append(base.appendingPathComponent("index.scriptable"))
+      candidates.append(base.appendingPathComponent("index.widget"))
     }
     return candidates.first { url in
       var isDirectory: ObjCBool = false

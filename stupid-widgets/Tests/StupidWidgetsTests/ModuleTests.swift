@@ -59,7 +59,7 @@ final class ModuleTests: XCTestCase {
       UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    let url = directory.appendingPathComponent("fixture.scriptable")
+    let url = directory.appendingPathComponent("fixture.widget")
     let script = Script(
       id: UUID(),
       name: "fixture",
@@ -67,6 +67,7 @@ final class ModuleTests: XCTestCase {
       iconGlyph: "doc.text",
       source: "module.exports = 7;",
       alwaysRunInApp: false,
+      previewFamily: "medium",
       shareSheetInputs: [],
       fileURL: url
     )

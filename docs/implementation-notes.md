@@ -1,5 +1,117 @@
 # Implementation Notes
 
+## 2026-08-20 — Widget UX, `.widget` domain, device/iCloud provisioning
+
+- Switched scripts from the `.scriptable` file extension to **`.widget`** across `ScriptStore`
+  (filter/seed/paths), the WidgetKit extension's `availableScripts`, module resolution
+  (`RuntimeRegistration`), the `Info.plist` document type, and the bundled/config resource lists.
+  The `.scriptable` name and `scriptable-api.json` docs bundle are unchanged.
+- Gave scripts a **persistent identity**: the `.widget` manifest now carries an `id`; `ScriptStore`
+  reads it (falling back to a filename-derived UUID for legacy files). This stops the `Widget Not
+  Found` failure after rename/edit because navigation ids no longer churn on `reload()`.
+- Removed the two built-in sample widgets (the widgets list now starts empty with a **"No Widgets"**
+  empty state) and deleted the redundant `xtool.yml`.
+- "New widget" now creates `Untitled Widget` (auto-uniqued) and **opens its detail directly** instead
+  of the naming dialog; the naming alert is rename-only.
+- New widgets begin from the recovered **hello-world boilerplate** (gradient + date/time + title).
+- The Small/Medium/Large **preview preference is now persisted per widget** (`preview_family`).
+- When ChatGPT is disconnected the bottom bar shows a bordered **"Edit with ChatGPT"** pill (same
+  54pt height + border as the reload circle and input), keeping the reload button. While busy, the
+  **current agent tool call** displays in muted text above the input (new `.toolCalled` event).
+- Device/iCloud provisioning: enabled **iCloud + CloudKit**, registered the
+  **`iCloud.net.stupidtech.stupidwidgets`** container on the App ID, and slimmed the entitlements to
+  `icloud-services`, `ubiquity-container-identifiers`, and `application-groups` (dropped the `$()`-based
+  keychain/kvstore/env keys the CLI can't expand). iCloud script sync points `ScriptStore` at the
+  ubiquity container with `NSMetadataQuery` change observation; ChatGPT credentials sync via iCloud
+  Keychain (`kSecAttrSynchronizable`).
+- Added a passwordless CoreDevice `sudoers` rule for the installed CLI; relies on a real dev profile
+  for `00008130-001C4CA030A1401C` that authorizes the iCloud container.
+- Steps 1–4 of the cross-platform plan landed earlier: `WidgetRender` target, preview/extension
+  unified on `ScriptWidgetSnapshotView`, `WidgetRenderer.swift` removed, and a **Catalyst Mac app** in
+  `mac-app/` (xcodegen `project.yml`) importing `StupidWidgetsCore`. `StupidWidgetsCore` is now an
+  importable library product.
+
+---
+
+## 2026-08-20 — Cross-platform rendering + iCloud + Catalyst Mac app (end to end)
+
+Implements `docs/cross-platform-rendering-handover.md` through to the Mac and iCloud pieces.
+
+### Shared rendering target (completed earlier this session)
+- Added the macOS-clean `WidgetRender` SwiftPM target (snapshot value types + `ScriptWidgetSnapshotView` +
+  a cross-platform `Image(widgetImageData:)`). Its only platform seam uses `#if canImport(UIKit)` first,
+  then `#elseif canImport(AppKit)` — the order matters so Mac Catalyst takes the `uiImage` branch
+  (under Catalyst both frameworks are importable but `Image(nsImage:)` is invalid).
+- Deleted `WidgetRenderer.swift`; the in-app preview and WidgetKit extension both render the shared
+  `ScriptWidgetSnapshotView`. `StupidWidgetsCore` is now an exported library product
+  (`Package.swift`) so an external Xcode project can depend on it.
+
+### iCloud script sync (source of truth)
+- Pointed `ScriptStore` at the app's ubiquity container (`Documents/Scripts`) first, falling back to
+  stores when iCloud is unavailable; the app-group mirror (for the widget extension) is unchanged.
+- Added `NSMetadataQuery` (ubiquitous Documents scope, `kMDItemFSName ENDSWITH .scriptable`) so external
+  edits on another device trigger `ScriptStore.reload()` → the widget timelines refresh.
+- Added CloudKit/Documents iCloud entitlement (`com.apple.developer.ubiquity-container-identifiers` =
+  `iCloud.net.stupidtech.stupidwidgets`) plus a keychain-access-groups entitlement to the iOS app's
+  `StupidWidgets.entitlements` and the Mac app's entitlements.
+
+### ChatGPT credentials across apps
+- `AIClient` now saves the OpenAI credential to the device Keychain with
+  `kSecAttrSynchronizable = true` and `kSecAttrAccessibleAfterFirstUnlock` (was
+  `...ThisDeviceOnly`). Because the iOS app and the Catalyst Mac app share the same bundle
+  identifier and team access group, the iCloud Keychain syncs the ChatGPT credential across
+  devices and the Mac app. Simulator builds keep the existing UserDefaults fallback.
+
+### Catalyst Mac app
+- Added `mac-app/` (committed `project.yml`, `Sources/StupidWidgetsMac/StupidWidgetsMacApp.swift`,
+  `StupidWidgetsMac.entitlements`). Regenerate the checked-in `StupidWidgetsMac.xcodeproj` with
+  `xcodegen generate` from `mac-app/`.
+- It is a Mac Catalyst app (same bundle id `net.stupidtech.stupidwidgets`) importing the local
+  `StupidWidgets` package's `StupidWidgetsCore` product — it shares the JS bridge, models, store,
+  iCloud sync, and the `WidgetRender` engine.
+- `xcodegen` was installed via Homebrew.
+- Verified: `xcodebuild build -project StupidWidgetsMac.xcodeproj -scheme StupidWidgetsMac
+  -destination 'platform=macOS,variant=Mac Catalyst' CODE_SIGNING_ALLOWED=NO` **Build Succeeded**;
+  the same `WidgetRender` sources build standalone for native macOS and for the iOS simulator.
+
+### Known limits / needs-device-verification
+- iCloud and Keychain sharing require a real signed/provisioned build (and a team) — not exercised on
+  the simulator or in the sandbox. `$(TeamIdentifierPrefix)`/`$(AppIdentifierPrefix)` expand under
+  Xcode; the CLI build path should be confirmed.
+- WidgetKit Home Screen widgets are not re-hosted on the Mac; the Catalyst app shares everything else
+  but does not embed the `.appex` (Mac Catalyst widget-extension embedding is limited).
+- `kSecAttrSynchronizable` can surface `errSecMissingEntitlement` until provisioning is set up; this
+  surfaces as a keychain-storage error rather than being silently swallowed.
+
+---
+
+## 2026-08-20 — Shared WidgetRender target (cross-platform rendering)
+
+- Added a new macOS-clean SwiftPM target `WidgetRender` (`Sources/WidgetRender/`) that contains
+  the pure `ScriptWidget*` value types and `ScriptWidgetSnapshotView`, plus a cross-platform
+  `Image(widgetImageData:)` helper (the only platform seam, using a `#if canImport(AppKit)` branch).
+  It depends only on SwiftUI (`Platforms: [.iOS(.v17), .macOS(.v14)]`), with no
+  `UIKit`/`AppKit`/`JavaScriptCore`.
+- Moved the snapshot value types and the shared view out of
+  `Sources/StupidWidgets/WidgetExtensionSupport.swift` (core) into `WidgetRender`. `WidgetRender` is
+  now a dependency of `StupidWidgetsCore`, `StupidWidgetsWidgetExtension`, and the tests; the app and
+  extension can both render the exact same snapshot view.
+- Deleted `Sources/StupidWidgets/WidgetRenderer.swift`. The in-app live preview (`WidgetPreviewCanvas`
+  in `Views.swift`) now snapshots the running `ListWidgetModel` via `ScriptWidgetRunner.snapshot(widget:)`
+  and renders the shared `ScriptWidgetSnapshotView`, matching the WidgetKit extension path. Any
+  previously-internal `WidgetRenderer` member is gone; its per-family corner-radius clip is preserved in
+  the preview canvas.
+- `WidgetExtensionSupport.swift` retains the UIKit-coupled runners/conversions only: the app-group
+  `StupidWidgetsWidgetStorage`, `SharedWidgetScript`, `ScriptWidgetRunner` (JS→snapshot), and a new core
+  `ScriptWidgetFont` `UIFont`-based initializer extension (the `ScriptWidget*` types are now in
+  `WidgetRender`). To preserve preview/extensions fidelity that the old renderer had, the snapshot now
+  also carries a background-image case (`ScriptWidgetBackground.image(Data)`), a date-relative/offset/timer
+  label path, and an image fit-vs-fill flag (`fills`).
+- Verified: `swift build --target WidgetRender` compiles cleanly for macOS; the iOS simulator package and
+  test target build; all 31 simulator tests pass through the `StupidWidgets-Package` scheme.
+
+---
+
 ## 2026-08-20 — Raise agent tool-loop limit
 
 - `AgentAIClient.chat` loop raised from 8 to 100 provider turns
@@ -26,7 +138,7 @@
   editor stack (Runestone + Tern + tree-sitter), gap analysis, and the AI editor design.
 
 ### Decisions locked (user)
-- iOS app first (xtool/SwiftUI + JavaScriptCore).
+- iOS app first (SwiftUI + JavaScriptCore).
 - API-compatible: existing Scriptable scripts should run on our platform.
 - AI editor: Cloudflare Worker backend (Hono + openai), backend-managed OpenAI key,
   chat generate + iterate UX grounded on `docs/scriptable-api.json`.
@@ -38,7 +150,7 @@
 - No entitlements file shipped in the .ipa (provisioning profile not included in download).
 
 ### Next steps
-- Scaffold iOS app (xtool) + API-compatible JavaScriptCore bridge, testable against
+- Scaffold iOS app  + API-compatible JavaScriptCore bridge, testable against
   `docs/scriptable-api.json`.
 - Cloudflare Worker AI backend (`POST /chat` streaming, system prompt distilled from the spec).
 - Editor AI panel + wiring.
@@ -61,7 +173,7 @@ but the last full build was never verified green.** Read this whole section befo
 ├── tools/generate-api-spec.mjs      # regenerates scriptable-api.json (bun run)
 ├── third-party/scriptable/          # gitignored: extracted Scriptable.app bundle
 ├── ai-backend/                      # Cloudflare Worker — COMPLETE
-└── stupid-widgets/                  # iOS app (xtool SwiftPM) — IN PROGRESS
+└── stupid-widgets/                  # iOS app (SwiftPM) — IN PROGRESS
 ```
 
 ### AI backend — COMPLETE (Cloudflare Worker)
@@ -88,7 +200,7 @@ but the last full build was never verified green.** Read this whole section befo
   - Backticks inside TS template literals that render Markdown code fences must be escaped.
 
 ### iOS app — IN PROGRESS (`stupid-widgets/`)
-- xtool SwiftPM app, bundle ID `net.stupidtech.stupidwidgets`, `infoPath: Info.plist`
+- SwiftPM app, bundle ID `net.stupidtech.stupidwidgets`, `infoPath: Info.plist`
   (contains `NSAppTransportSecurity` allow-arbitrary for dev HTTP), `resources: Resources`
   (2 bundled `.scriptable` samples).
 - Targets iOS simulator `NoFeedSocial iOS 26.3` (UDID `6552DF1D-95CE-48E3-801F-8F80F0AA8D29`).
@@ -137,12 +249,12 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
   fixed — `RelativeDateTimeFormatterModel.jsCall` missing return in `SystemBridges.swift`.
   **The final full build has NOT been run/verified.** Run this from `stupid-widgets/`:
   ```
-  xtool dev run --simulator -u 6552DF1D-95CE-48E3-801F-8F80F0AA8D29 --no-attach --no-logs --launch-timeout 300
+  stupid-app run --simulator --udid 6552DF1D-95CE-48E3-801F-8F80F0AA8D29
   ```
 - **CRITICAL build hygiene (learned the hard way):** SwiftPM locks `.build/`. If a build is
   aborted mid-run, its child `swift-build` process keeps the lock and every later build blocks
   on `waiting until that process has finished execution`. Always
-  `pkill -9 -f xtool; pkill -9 -f swift-build` before retrying. **Run builds in the foreground**
+  `pkill -9 -f swift-build` before retrying. **Run builds in the foreground**
   (no `nohup ... &`) so an abort kills the build instead of orphaning it.
 - First full build is slow (few minutes, ~15 Swift files). Subsequent incremental builds are fast.
 - Remaining warnings (non-blocking): some `Any?` implicit-coercion warnings; deprecated
@@ -167,11 +279,11 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
 - Fixed a Swift compiler stall in `WidgetRenderer`: recursive widget stacks created a recursive
   opaque `some View` type between `child` and `stackView`. The recursive `child` boundary now uses
   `AnyView` type erasure.
-- Changed `xtool.yml` to package the two sample scripts individually at the app bundle root. A
+- Changed `stupid-app.yml` to package the two sample scripts individually at the app bundle root. A
   top-level directory named `Resources` made Foundation interpret the generated app as a legacy
   bundle, hide its root `Info.plist`, and caused simulator installation to fail with
   `Missing bundle ID`. Root packaging also matches `ScriptStore`'s resource lookup.
-- Verified `xtool dev run --simulator -u 6552DF1D-95CE-48E3-801F-8F80F0AA8D29 --no-attach
+- Verified stupid-app run --simulator -u 6552DF1D-95CE-48E3-801F-8F80F0AA8D29 --no-attach
   --no-logs --launch-timeout 300` builds and installs successfully.
 - Verified launch on `NoFeedSocial iOS 26.3`; the initial script list exposes `Hello Widget` and
   `Read MacStories`.
@@ -188,7 +300,7 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
 - Fixed console bridge argument marshalling in `RuntimeRegistration`. JavaScript console methods
   now collect variadic arguments into an array before invoking the native logger, so calls such as
   `console.log("text")` no longer fail while converting a primitive to `NSArray`.
-- Rebuilt and installed with xtool, requested a script through the simulator AI panel, verified
+- Rebuilt and installed through the build tool, requested a script through the simulator AI panel, verified
   auto-insertion of `console.log("APP_E2E_OK");`, ran it, and observed `APP_E2E_OK` in the in-app
   console.
 
@@ -198,7 +310,7 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
 
 - Added `docs/engineering-handover.md` as the current takeover guide for another engineer.
 - Consolidated verified build and AI E2E state, repository and runtime architecture, exact file
-  references, API coverage, local credential handling, xtool recovery steps, manual verification
+  references, API coverage, local credential handling,  recovery steps, manual verification
   flows, known defects, stale historical-note corrections, and a prioritized implementation plan.
 - Cross-checked the guide against the current code, including effective versus declared API
   coverage, source-control status, scoped build-process cleanup, table crash/object-allocation risks,
@@ -227,16 +339,16 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
   and moved the Scriptable Keychain API to Keychain Services on signed devices.
 - Added simulator-targeted runtime and persistence regression tests. Test sources compile; final
   standalone linking remains blocked by the library target's embedded SwiftUI `@main`, while the
-  generated xtool scheme has no test action.
-- Verified a green xtool build/install, persistent edits across relaunch, Hello Widget preview,
+  generated scheme has no test action.
+- Verified a green build/install, persistent edits across relaunch, Hello Widget preview,
   completed ChatGPT device authorization, direct Codex SSE generation, automatic editor insertion,
   persistence across relaunch, and execution of generated `CHATGPT_CLIENT_OK` code on the preferred
   simulator.
-- Completed OAuth initially failed to persist with `errSecMissingEntitlement` (`-34018`). xtool
-  pseudo-signing rejects explicit Keychain access-group entitlements on simulator launch, so
+- Completed OAuth initially failed to persist with `errSecMissingEntitlement` (`-34018`). 
+pseudo-signing rejects explicit Keychain access-group entitlements on simulator launch, so
   simulator builds use isolated development-only UserDefaults records for OAuth and the Scriptable
   `Keychain` API. Signed device builds continue to use Keychain Services.
-- The xtool build/install/launch command completed successfully: `xtool dev run --simulator -u
+- The build/install/launch command completed successfully: stupid-app run --simulator -u
   6552DF1D-95CE-48E3-801F-8F80F0AA8D29 --no-attach --no-logs --launch-timeout 300`.
 - The simulator test-target compilation command completed successfully: `swift build --target
   StupidWidgetsTests --triple arm64-apple-ios-simulator --sdk "$(xcrun --sdk iphonesimulator
@@ -251,7 +363,7 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
 ## 2026-08-15 — Simulator tests made executable
 
 - Split the package into a reusable `StupidWidgetsCore` target and a minimal
-  `StupidWidgetsApp` target containing only SwiftUI `@main`. The single xtool library product
+  `StupidWidgetsApp` target containing only SwiftUI `@main`. The single  library product
   still packages the app target and its core dependency.
 - Added `StupidWidgetsRootView` as the core-to-app boundary and changed the test target to import
   `StupidWidgetsCore`, removing the duplicate `_main` test-link failure.
@@ -259,7 +371,7 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
   the ES6-compatible JavaScriptCore surface.
 - Executed all four tests successfully on `NoFeedSocial iOS 26.3` with `xcodebuild test -scheme
   StupidWidgets -destination "platform=iOS Simulator,id=6552DF1D-95CE-48E3-801F-8F80F0AA8D29"`.
-- Verified `xtool dev run --simulator -u 6552DF1D-95CE-48E3-801F-8F80F0AA8D29 --no-attach
+- Verified stupid-app run --simulator -u 6552DF1D-95CE-48E3-801F-8F80F0AA8D29 --no-attach
   --no-logs --launch-timeout 300` still builds and installs, then explicitly launched
   `net.stupidtech.stupidwidgets` with `simctl`.
 
@@ -278,7 +390,7 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
   helper types, and verify the special `Script` global's four canonical functions.
 - Regenerated the API artifacts, formatted and linted the JavaScript generator with oxfmt/oxlint, and
   formatted the manually changed Swift sources with `swift format`.
-- Executed eight tests successfully on `NoFeedSocial iOS 26.3`, then verified the xtool app build and
+- Executed eight tests successfully on `NoFeedSocial iOS 26.3`, then verified the  app build and
   installation and explicitly launched `net.stupidtech.stupidwidgets` as simulator PID `40215`.
 
 ---
@@ -296,7 +408,7 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
 - Added three simulator regressions covering exports, relative and directory resolution, caching,
   dependency records, circular imports, strict `.scriptable` loading, missing-module errors, thrown
   module errors, and successful retry after a failed evaluation.
-- Executed all eleven tests successfully on `NoFeedSocial iOS 26.3`, verified a green xtool build and
+- Executed all eleven tests successfully on `NoFeedSocial iOS 26.3`, verified a green build and
   installation, and explicitly launched `net.stupidtech.stupidwidgets` as simulator PID `43455`.
 
 ---
@@ -327,7 +439,7 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
 
 ## 2026-08-15 — Generic configurable WidgetKit runner
 
-- Added `StupidWidgetsWidgetExtension` as a second xtool SwiftPM product with shared app-group
+- Added `StupidWidgetsWidgetExtension` as a second SwiftPM product with shared app-group
   entitlements on the app and extension.
 - Added non-destructive mirroring of the complete Documents script library into the app group. Script
   creates, edits, imports, renames, and deletes update the mirrored files; successful widget runs and
@@ -337,7 +449,7 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
   renders the snapshot inside the extension.
 - Added an App Intent widget configuration with a dynamic script entity query. Every Home Screen
   instance stores its own script selection, enabling multiple widgets backed by different scripts.
-- Discovered that xtool does not invoke `appintentsmetadataprocessor`. Generated the metadata with an
+- Discovered that  does not invoke `appintentsmetadataprocessor`. Generated the metadata with an
   Xcode build and explicitly packaged `WidgetMetadata/Metadata.appintents`; `chronod` then resolved
   `SelectScriptIntent` and exposed the configurable widget in the gallery.
 - Added a medium stupid widgets widget to the preferred simulator Home Screen. It rendered the
@@ -346,7 +458,7 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
 - Fixed a startup mirroring race that briefly removed the shared Scripts directory during timeline
   requests. Mirroring now removes only stale files, writes atomically, and reloads timelines after the
   library is complete.
-- Verified a final xtool build/install, app relaunch, persistent widget selection, live Home Screen
+- Verified a final build/install, app relaunch, persistent widget selection, live Home Screen
   refresh at 17°C, and all fourteen simulator tests using the `StupidWidgets-Package` scheme.
 
 ---
@@ -366,7 +478,7 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
   engineering handover. Regenerated the 55-type API contract and confirmed Xcode-generated App Intent
   metadata is semantically identical to the checked-in metadata.
 - Formatted all Swift and JavaScript sources, passed oxlint with no findings, validated all property
-  lists, passed all fourteen simulator tests, completed a green xtool app/widget build and install,
+  lists, passed all fourteen simulator tests, completed a green app/widget build and install,
   confirmed the installed `CFBundleDisplayName` is `stupid widgets`, and launched
   `net.stupidtech.stupidwidgets` on the preferred simulator as PID `3138`.
 
@@ -394,7 +506,7 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
 
 - Added complete iPhone, iPad, and App Store icon sets generated from the supplied square artwork.
 - Configured the asset catalog, concrete bundled icon resources, and primary icon metadata required
-  by xtool and App Store validation.
+  by  and App Store validation.
 
 ---
 
@@ -515,7 +627,7 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
 - Added regressions for top-level-await compilation, syntax-error detection, and recoverable
   compilation feedback in edit-tool output.
 - Compiled the simulator test target, passed all eighteen tests on the preferred simulator, and
-  completed a green xtool app/widget build and installation.
+  completed a green app/widget build and installation.
 
 ---
 
@@ -531,7 +643,7 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
 - Added validator regressions for thrown runtime errors, missing widgets, and successful widgets.
 - Changed asynchronous execution failure propagation to retain the JavaScript error message rather
   than the unhelpful JavaScriptCore stack placeholder `@`, giving the agent actionable retry context.
-- Passed all twenty-one simulator tests, completed a green xtool app/widget build and installation,
+- Passed all twenty-one simulator tests, completed a green app/widget build and installation,
   repaired the persisted simulator script with CATAAS `fit=cover`, and verified its cat image renders
   in the native widget preview.
 
@@ -543,7 +655,7 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
   switches to the source editor, where the existing runtime console exposes the failure.
 - Added a `Copy Error` console action whenever runtime error lines are present. It copies all errors
   while excluding ordinary console output.
-- Passed all twenty-one simulator tests and completed a green xtool app/widget build and installation.
+- Passed all twenty-one simulator tests and completed a green app/widget build and installation.
   Verified with a temporary failing simulator script that `Show Error` opens the editor and
   `Copy Error` places the exact runtime failure on the pasteboard, then removed the temporary script
   and relaunched the app.
@@ -664,7 +776,7 @@ DrawContext/DocumentPicker/ShareSheet/CallbackURL/URLScheme/XMLParser.
 - Added Small, Medium, and Large controls to widget details. Selecting a family reruns the script with
   the corresponding `config.widgetFamily` and renders it at that family's aspect ratio.
 - WidgetKit execution now also supplies the actual system family through `config.widgetFamily`.
-- Passed all twenty-nine simulator tests, completed an xtool app/extension build and installation,
+- Passed all twenty-nine simulator tests, completed an  app/extension build and installation,
   and verified the family selector and correctly sized Small preview on the preferred simulator.
 - Bumped the app and WidgetKit extension together from build 6 to build 7 for TestFlight.
 
