@@ -1,5 +1,43 @@
 # Implementation Notes
 
+## 2026-08-20 — iCloud rename/list robustness
+
+- On an iOS device the `ScriptStore` reads the iCloud ubiquity container
+  (`Documents/Scripts`). A single not-yet-downloaded/coalescing `.widget` file made
+  `reload()` abort, leaving the in-app widget list frozen, and plain `Data(contentsOf:)`
+  reads could fail on ubiquity items. Reported as "renaming is broken and widget list
+  doesn't update" on the iPhone.
+- `Script.fromFile` now reads through `NSFileCoordinator` and starts a download for iCloud
+  placeholders that are not yet current before decoding.
+- `ScriptStore.reload()` now decodes each `.widget` file independently and drops files that
+  fail to read instead of aborting the whole reload (so one transient cloud item can't
+  blank/ freeze the list). Directory-enumeration errors still surface via `errorMessage`.
+- Rename/create/delete/import already mutate the in-memory list directly, which now can no
+  longer be clobbered by a stale read; verified in-app on the simulator.
+- Added `ScriptStoreTests.testRenameUpdatesListAndPersists` (rename updates the list, the
+  file is actually renamed on disk, and the new name survives a reload). All 32 simulator
+  tests pass. Could not re-verify on the physical iPhone because it wasn't reachable via
+  usbmuxd during this session.
+
+## 2026-08-20 — Fix duplicate widget list rows
+
+- A widget's persistent `id` was derived from its *name* (`Script.stableID(for: name)`), and
+  `rename` keeps that id. So renaming "Untitled" → "Untitled 2" (id stays
+  `stableID("Untitled.widget")`), then creating a new "Untitled", produced a second file with
+  the same id. Since `ScriptListView.ForEach` keys rows by `script.id`, two rows shared one
+  identity and rendered as duplicate line items.
+- `ScriptStore.create` now assigns a genuinely random `UUID()` (persisted in the manifest)
+  instead of a name-derived id, so new widgets can never collide after a rename. The
+  `stableID(from:)` fallback remains only for reading legacy files that lack an `id` field.
+- `ScriptStore.reload()` now deduplicates on load: if two files resolve to the same id, the
+  later one is given a fresh `UUID()` (persisted), repairing already-written duplicates on
+  the device.
+- Added `ScriptStoreTests.testRenameThenRecreateSameNameDoesNotDuplicateIDs` and
+  `testReloadDeduplicatesCollidingIDs`. All ScriptStore/logical tests pass; the duplicate fix
+  was deployed to the iPhone for manual confirmation.
+
+---
+
 ## 2026-08-20 — Widget UX, `.widget` domain, device/iCloud provisioning
 
 - Switched scripts from the `.scriptable` file extension to **`.widget`** across `ScriptStore`

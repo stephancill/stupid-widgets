@@ -39,4 +39,61 @@ final class ScriptStoreTests: XCTestCase {
     store.updateSource(id: firstID, source: "console.log('latest')")
     XCTAssertEqual(store.scripts.first?.name, "First")
   }
+
+  func testRenameUpdatesListAndPersists() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let store = ScriptStore(directory: directory)
+    let script = try XCTUnwrap(store.create(name: "Original"))
+    store.rename(id: script.id, to: "Renamed")
+
+    let renamed = try XCTUnwrap(store.scripts.first)
+    XCTAssertEqual(renamed.name, "Renamed")
+    XCTAssertTrue(FileManager.default.fileExists(atPath: renamed.fileURL.path))
+    XCTAssertFalse(FileManager.default.fileExists(atPath: script.fileURL.path))
+
+    let reloaded = ScriptStore(directory: directory)
+    XCTAssertEqual(reloaded.scripts.first?.name, "Renamed")
+  }
+
+  func testRenameThenRecreateSameNameDoesNotDuplicateIDs() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let store = ScriptStore(directory: directory)
+    let original = try XCTUnwrap(store.create(name: "Untitled"))
+    store.rename(id: original.id, to: "Untitled 2")
+    let recreated = try XCTUnwrap(store.create(name: "Untitled"))
+
+    XCTAssertNotEqual(original.id, recreated.id)
+    XCTAssertEqual(Set(store.scripts.map(\.id)).count, store.scripts.count)
+
+    let reloaded = ScriptStore(directory: directory)
+    XCTAssertEqual(Set(reloaded.scripts.map(\.id)).count, reloaded.scripts.count)
+  }
+
+  func testReloadDeduplicatesCollidingIDs() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let store = ScriptStore(directory: directory)
+    let collidingID = UUID().uuidString
+    func writeColliding(_ name: String) throws {
+      let value: [String: Any] = [
+        "name": name, "id": collidingID,
+        "icon": ["color": "deep-blue", "glyph": "doc.text"],
+        "script": "// \(name)\n", "always_run_in_app": false, "share_sheet_inputs": [],
+      ]
+      let data = try JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted])
+      try data.write(
+        to: directory.appendingPathComponent(name).appendingPathExtension("widget"))
+    }
+    try writeColliding("Widget A")
+    try writeColliding("Widget B")
+
+    let reloaded = ScriptStore(directory: directory)
+    XCTAssertEqual(reloaded.scripts.count, 2)
+    XCTAssertEqual(Set(reloaded.scripts.map(\.id)).count, 2)
+  }
 }

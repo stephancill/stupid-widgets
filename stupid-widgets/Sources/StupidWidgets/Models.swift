@@ -55,7 +55,7 @@ struct Script: Identifiable, Hashable {
   }
 
   static func fromFile(_ url: URL) throws -> Script {
-    let value = try JSONDecoder().decode(FileContents.self, from: Data(contentsOf: url))
+    let value = try JSONDecoder().decode(FileContents.self, from: coordinatedRead(at: url))
     let id = value.id.flatMap(UUID.init(uuidString:)) ?? stableID(for: url.lastPathComponent)
     return Script(
       id: id,
@@ -70,6 +70,27 @@ struct Script: Identifiable, Hashable {
     )
   }
 
+  private static func coordinatedRead(at url: URL) throws -> Data {
+    var coordinationError: NSError?
+    var data: Data?
+    let coordinator = NSFileCoordinator(filePresenter: nil)
+    coordinator.coordinate(readingItemAt: url, options: [], error: &coordinationError) { readURL in
+      if let values = try? readURL.resourceValues(
+        forKeys: [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]
+      ) {
+        if values.isUbiquitousItem == true,
+          values.ubiquitousItemDownloadingStatus != .current
+        {
+          try? FileManager.default.startDownloadingUbiquitousItem(at: readURL)
+        }
+      }
+      data = try? Data(contentsOf: readURL)
+    }
+    if let coordinationError { throw coordinationError }
+    guard let data else { throw CocoaError(.fileReadUnknown) }
+    return data
+  }
+
   static func stableID(for name: String) -> UUID {
     var bytes = [UInt8](repeating: 0, count: 16)
     let digest = Array(SHA256.hash(data: Data(name.utf8)))
@@ -78,7 +99,25 @@ struct Script: Identifiable, Hashable {
     }
     bytes[6] = (bytes[6] & 0x0F) | 0x40
     bytes[8] = (bytes[8] & 0x3F) | 0x80
-    return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7], bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
+    return UUID(
+      uuid: (
+        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7], bytes[8],
+        bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+      ))
+  }
+
+  func assignedUniqueID() -> Script {
+    Script(
+      id: UUID(),
+      name: name,
+      iconColor: iconColor,
+      iconGlyph: iconGlyph,
+      source: source,
+      alwaysRunInApp: alwaysRunInApp,
+      previewFamily: previewFamily,
+      shareSheetInputs: shareSheetInputs,
+      fileURL: fileURL
+    )
   }
 
   func encoded() throws -> Data {
@@ -142,7 +181,20 @@ final class ScriptStore: ObservableObject {
         at: directory, includingPropertiesForKeys: [.contentModificationDateKey]
       )
       .filter { $0.pathExtension.lowercased() == "widget" }
-      scripts = try urls.map(Script.fromFile)
+      var seen = Set<UUID>()
+      let scripts = urls.compactMap { url -> Script? in
+        do {
+          var script = try Script.fromFile(url)
+          if !seen.insert(script.id).inserted {
+            script = script.assignedUniqueID()
+            try? write(script)
+          }
+          return script
+        } catch {
+          return nil
+        }
+      }
+      self.scripts = scripts
       sort()
       syncWidgetScripts()
       errorMessage = nil
@@ -161,7 +213,7 @@ final class ScriptStore: ObservableObject {
       let uniqueName = try availableName(startingWith: name)
       let url = fileURL(for: uniqueName)
       let script = Script(
-        id: Script.stableID(for: "\(uniqueName).widget"),
+        id: UUID(),
         name: uniqueName,
         iconColor: "deep-blue",
         iconGlyph: "doc.text",
@@ -226,7 +278,8 @@ final class ScriptStore: ObservableObject {
   }
 
   func updatePreviewFamily(id: UUID, family: String) {
-    guard let index = scripts.firstIndex(where: { $0.id == id }), scripts[index].previewFamily != family
+    guard let index = scripts.firstIndex(where: { $0.id == id }),
+      scripts[index].previewFamily != family
     else { return }
     var updated = scripts[index]
     updated.previewFamily = family
@@ -301,8 +354,7 @@ final class ScriptStore: ObservableObject {
   }
 
   private func seedBundledScripts() throws {
-    for source in Bundle.main.urls(forResourcesWithExtension: "widget", subdirectory: nil) ?? []
-    {
+    for source in Bundle.main.urls(forResourcesWithExtension: "widget", subdirectory: nil) ?? [] {
       let destination = directory.appendingPathComponent(source.lastPathComponent)
       if !FileManager.default.fileExists(atPath: destination.path) {
         try FileManager.default.copyItem(at: source, to: destination)
