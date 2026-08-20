@@ -4,48 +4,19 @@
 <dict>
 	<key>CFBundleDisplayName</key>
 	<string>stupid widgets</string>
-	<key>CFBundleVersion</key>
-	<string>8</string>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-	</dict>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
 			<string>Scriptable Script</string>
-			<key>LSItemContentTypes</key>
-			<array>
-				<string>net.stupidtech.stupidwidgets.script</string>
-			</array>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>
 			<string>Alternate</string>
-		</dict>
-	</array>
-	<key>LSSupportsOpeningDocumentsInPlace</key>
-	<false/>
-	<key>UTImportedTypeDeclarations</key>
-	<array>
-		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>net.stupidtech.stupidwidgets.script</string>
-			<key>UTTypeConformsTo</key>
+			<key>LSItemContentTypes</key>
 			<array>
-				<string>public.json</string>
+				<string>net.stupidtech.stupidwidgets.script</string>
 			</array>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>scriptable</string>
-				</array>
-			</dict>
 		</dict>
 	</array>
 	<key>CFBundleIconName</key>
@@ -77,5 +48,34 @@
 			</array>
 		</dict>
 	</dict>
+	<key>CFBundleVersion</key>
+	<string>10</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<false/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.json</string>
+			</array>
+			<key>UTTypeIdentifier</key>
+			<string>net.stupidtech.stupidwidgets.script</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>scriptable</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
 </dict>
 </plist>

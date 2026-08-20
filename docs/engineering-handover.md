@@ -248,7 +248,7 @@ Responses tool loop:
   than the entire editor contents. Reads are capped at 200 numbered lines. Edits require one exact,
   unique match and fail loudly on zero or multiple matches.
 - Tool calls are accumulated by Responses item ID, replayed with `function_call_output`, and may run
-  for up to eight provider turns. Encrypted reasoning continuation data is preserved with
+  for up to one hundred provider turns. Encrypted reasoning continuation data is preserved with
   `store: false`.
 - Successful edit tools update the editor through the normal autosave path; final assistant text is
   only a short summary and no longer reproduces the full script.

@@ -1,0 +1,17 @@
+version: 1
+product: StupidWidgets
+bundleID: net.stupidtech.stupidwidgets
+deploymentTarget: "17.0"
+infoPath: Info.plist
+entitlementsPath: StupidWidgets.entitlements
+iconPath: Resources/AppIcon.appiconset/Icon-1024.png
+resources:
+  - Resources/scriptable-api.json
+  - "Resources/Hello Widget.scriptable"
+  - "Resources/Read MacStories.scriptable"
+extensions:
+  - product: StupidWidgetsWidgetExtension
+    bundleID: net.stupidtech.stupidwidgets.widget
+    infoPath: WidgetExtension-Info.plist
+    entitlementsPath: StupidWidgetsWidgetExtension.entitlements
+    appIntentsMetadata: WidgetMetadata/Metadata.appintents

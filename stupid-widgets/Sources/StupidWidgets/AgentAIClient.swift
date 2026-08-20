@@ -186,7 +186,7 @@ struct AgentAIClient {
           let validationRuntime = JSRuntime()
           var didUpdateScript = false
 
-          for _ in 0..<8 {
+          for _ in 0..<100 {
             let result = try await responseTurn(
               credential: credential,
               input: input,
@@ -248,7 +248,7 @@ struct AgentAIClient {
               ])
             }
           }
-          throw AIClientError.server("ChatGPT exceeded the eight-step tool limit.")
+          throw AIClientError.server("ChatGPT exceeded the tool-call limit after one hundred turns.")
         } catch {
           continuation.finish(throwing: error)
         }

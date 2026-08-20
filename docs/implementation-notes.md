@@ -1,5 +1,15 @@
 # Implementation Notes
 
+## 2026-08-20 — Raise agent tool-loop limit
+
+- `AgentAIClient.chat` loop raised from 8 to 100 provider turns
+  (`for _ in 0..<100`), updated the exceeded-limit error string.
+- Why: a real weather-widget request ("show the weather in cape town") was
+  stopped after 8 turns — multi-`search_api` + repeated `edit_script` +
+  runtime-validation retries exceed a fixed 8-turn ceiling. 100 is a generous
+  cap with no convergence guard; if it still truncates, add a no-progress
+  guard instead of a higher number.
+
 ## 2026-08-15 — Inspection & API spec extraction
 
 ### What was done
