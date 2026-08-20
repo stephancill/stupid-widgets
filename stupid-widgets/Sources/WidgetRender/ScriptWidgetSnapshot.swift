@@ -216,7 +216,6 @@ public struct ScriptWidgetSnapshotView: View {
 
   public var body: some View {
     ZStack {
-      background
       VStack(alignment: .leading, spacing: snapshot.spacing) {
         ForEach(Array(snapshot.elements.enumerated()), id: \.offset) { _, element in
           elementView(element, parentAxis: .vertical)
@@ -228,6 +227,7 @@ public struct ScriptWidgetSnapshotView: View {
       .padding(.trailing, snapshot.padding.trailing)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(background)
   }
 
   @ViewBuilder

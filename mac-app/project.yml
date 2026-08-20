@@ -27,6 +27,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: net.stupidtech.stupidwidgets
         PRODUCT_NAME: "$(TARGET_NAME)"
         CODE_SIGN_ENTITLEMENTS: StupidWidgetsMac.entitlements
+        DEVELOPMENT_TEAM: "6JKMV57Y77"
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: "stupid widgets"
         INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.productivity"

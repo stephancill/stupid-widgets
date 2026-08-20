@@ -398,6 +398,8 @@ struct EditorView: View {
       VStack(spacing: 6) {
         if chat.isStreaming, let tool = chat.currentTool {
           toolStatus(tool)
+            .id(tool)
+            .animation(.default, value: chat.currentTool)
         }
         ChangePromptField(
           prompt: $prompt,
@@ -421,8 +423,8 @@ struct EditorView: View {
     Label(tool, systemImage: "hammer")
       .font(.caption)
       .foregroundStyle(.secondary)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(.horizontal, 4)
+      .frame(maxWidth: .infinity, alignment: .center)
+      .transition(.move(edge: .top).combined(with: .opacity))
   }
 
   private var connectButton: some View {
