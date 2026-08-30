@@ -1,5 +1,23 @@
 # Implementation Notes
 
+## 2026-08-30 — App Store submission: version 1.0.0 (13) uploaded
+
+- Declared `CFBundleShortVersionString = 1.0.0` in both `Info.plist` and
+  `WidgetExtension-Info.plist` (previously they only carried `CFBundleVersion`; the
+  build injected the marketing version, but `release preflight` required it stated
+  statically).
+- Bumped both plists in lockstep to build **13** (1.0.0(13)) via
+  `stupid-app release bump --build-number 13`.
+- `release preflight` passed; `release archive` produced a signed, post-verify IPA at
+  `.release/StupidWidgets.ipa` (SHA-256 `1a3813d5…`); `release upload --wait` landed
+  build `23afa67e` in App Store Connect.
+- Live ASC state: processing `VALID`, internal beta `IN_BETA_TESTING`, external beta
+  `READY_FOR_BETA_SUBMISSION`. Release manifest at `.release/release-manifest.json`.
+- App Store metadata (description/keywords/screenshots), the finalized listing text in
+  `docs/app-store-copy.md`, still needs pasting into the App Store Connect app page.
+
+---
+
 ## 2026-08-30 — App Store listing kit (screenshots + feature list) and simulator AI credential
 
 - Prepared the App Store submission content (screenshots + feature list) and seeded a
