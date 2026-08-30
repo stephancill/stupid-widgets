@@ -1,6 +1,43 @@
 # Implementation Notes
 
-## 2026-08-20 — iCloud rename/list robustness
+## 2026-08-30 — App Store listing kit (screenshots + feature list) and simulator AI credential
+
+- Prepared the App Store submission content (screenshots + feature list) and seeded a
+  ChatGPT credential for the simulator AI flow.
+- Built and installed the current app on four simulators (iPhone 17 Pro, 17 Pro Max,
+  16 Plus, iPad Pro 13″), each image captured at native resolution:
+  `docs/app-store-listing.md` maps each file to its App Store slot. Raw PNGs live in
+  `.release/screenshots/` (untracked).
+- The remits used come from the existing seeding pattern in `ScriptStore`; the three
+  `.widget` samples are local Documents data only, mirroring the removed bundled
+  samples. No bundled resources changed.
+
+### Simulator launch regression (iCloud entitlements)
+
+- The app would not launch on the simulator: `simctl spawn` failed with
+  `Compatibility: Security policy issue` / `NSPOSIXErrorDomain code 163`.
+- Root cause: the provisioning-time iCloud/CloudKit entitlements
+  (`com.apple.developer.icloud-container-environment`, `icloud-services`,
+  `ubiquity-container-identifiers`) are signed into the simulator build and
+  `launchd` refuses to spawn an app carrying cloud-container entitlements without a
+  real provisioning profile. Other simulator apps launch fine.
+- A re-signed copy with only `com.apple.security.application-groups` launches
+  correctly. This is a regression vs. previous simulator runs (which predated the
+  cloud entitlements commit). Not fixed in the source yet — only worked around for
+  the screenshots via `/tmp/simapp`. Flagged in the handover/SR risk.
+- Security note: launching on simulator for screenshots therefore requires the
+  entitlement-stripped build; do not ship that stripped entitlement set to devices.
+
+### ChatGPT credential for the simulator flow
+
+- The signed Catalyst app on this Mac (TestFlight) stores its own Keychain item scoped
+  to the app access group, so the macOS `security` CLI / an unsigned helper cannot
+  read it (`-25300`/`-34018`).
+- Per user choice, seeded the simulator app's `OpenAICredential` (JSON under
+  `net.stupidtech.stupidwidgets.openai` in UserDefaults) from OpenCode's
+  `~/.codex/auth.json` (auth_mode `chatgpt`, same OAuth flow the app uses). Verified:
+  the detail view shows the signed-in "Describe changes" assistant instead of
+  "Edit with ChatGPT". No secrets were printed or committed.
 
 - On an iOS device the `ScriptStore` reads the iCloud ubiquity container
   (`Documents/Scripts`). A single not-yet-downloaded/coalescing `.widget` file made
