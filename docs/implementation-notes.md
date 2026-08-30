@@ -1,5 +1,29 @@
 # Implementation Notes
 
+## 2026-08-30 — Populated App Store listing via ASC API
+
+- Attached build 13 to the existing App Store version `1.0`
+  (`PREPARE_FOR_SUBMISSION`) — build marketing version is `1.0.0`, ASC accepted the
+  `1.0` version once the build was attached.
+- Populated the `en-GB` localization via the ASC API (custom ES256 JWT from
+  `asc.key.pem`): **description** (from `docs/app-store-copy.md`), **keywords**,
+  **promotional text**, **support URL** (`https://stupidtech.net`) — confirmed `SET`.
+  `whatsNew` is state-locked ("cannot be edited at this time"); set via ASC UI.
+- Uploaded **11 screenshots** via the reserved-file-upload flow. Critical constraint:
+  ASC rejects screenshots that don't match the device's exact aspect ratio
+  (`IMAGE_INCORRECT_DIMENSIONS`). The padded `styled/` images were all rejected; a new
+  `ratio/` generator writes caption + device inside the native canvas, which ASC accepts
+  (all `assetDeliveryState = COMPLETE`):
+  - `APP_IPHONE_67`: 7 (17 Pro Max ×5 + 16 Plus ×2)
+  - `APP_IPHONE_61`: 2 (17 Pro)
+  - `APP_IPAD_PRO_3GEN_129`: 2 (iPad resized to 12.9″ 2048×2732; 13″ 2064×2752 is an
+    unrecognized dimension)
+- API gotchas: use `cryptography` raw ES256 (openssl `dgst` emits DER → `401`), do
+  **not** send the JWT `Authorization` header to the AWS presigned upload URL (→ `400`),
+  and space requests ~3s to avoid intermittent `401`/429.
+
+---
+
 ## 2026-08-30 — App Store submission: version 1.0.0 (13) uploaded
 
 - Declared `CFBundleShortVersionString = 1.0.0` in both `Info.plist` and
@@ -13,8 +37,9 @@
   build `23afa67e` in App Store Connect.
 - Live ASC state: processing `VALID`, internal beta `IN_BETA_TESTING`, external beta
   `READY_FOR_BETA_SUBMISSION`. Release manifest at `.release/release-manifest.json`.
-- App Store metadata (description/keywords/screenshots), the finalized listing text in
-  `docs/app-store-copy.md`, still needs pasting into the App Store Connect app page.
+- App Store listing (description/keywords/screenshots) is now **populated via the API**
+  (see above); the remaining manual fields are app subtitle and What's New, set in
+  App Store Connect.
 
 ---
 

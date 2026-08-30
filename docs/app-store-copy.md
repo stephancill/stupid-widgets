@@ -97,10 +97,34 @@ A rounded square app icon for stupid widgets.
 - **Bundle ID:** `net.stupidtech.stupidwidgets`
 - **Display name:** stupid widgets
 - **Team ID:** `6JKMV57Y77`
-- **Next build:** `13` (increment build 12 → 13 before upload)
+- **Current App Store version:** `1.0` (build 13 attached, `PREPARE_FOR_SUBMISSION`)
+- **Live on ASC via API:** description, keywords, promotional text, support URL,
+  copyright (© 2026 Stupid Tech), and all 11 screenshots across iPhone + iPad
+  display-type sets (all `COMPLETE`).
+- **Set via ASC UI (not API-able from here):** app subtitle, What's New
+  (`whatsNew` is state-locked), App name.
 - **Export compliance:** `ITSAppUsesNonExemptEncryption = false` is set — no
   encryption declaration needed.
 - **App Review caveat to review before upload:** the ChatGPT assistant uses a web-flow
   OAuth and an internal chatgpt.com endpoint that is not an officially documented API.
   Confirm acceptability or guard it behind an opt-in / plan-supported flow before
   shipping, as it may draw review scrutiny.
+
+## App Store Connect status (2026-08-30)
+
+Uploaded via the ASC API from this repo toolkit (`stupid-app` for the build,
+`/tmp/async` helpers for the listing):
+
+- Build 13 (marketing `1.0.0`) uploaded: processing `VALID`, internal `IN_BETA_TESTING`,
+  external `READY_FOR_BETA_SUBMISSION`.
+- App Store version `1.0` — build 13 attached.
+- `en-GB` localization: **description**, **keywords**, **promotional text**, **support URL** set.
+- Screenshots — 11 total, all `COMPLETE`:
+  - `APP_IPHONE_67`: 7 (17 Pro Max library/detail/preview/homescreen/editor, 16 Plus
+    library/detail)
+  - `APP_IPHONE_61`: 2 (17 Pro library/detail)
+  - `APP_IPAD_PRO_3GEN_129`: 2 (iPad library/detail at 12.9″ 2048×2732)
+- **Why styled + native-ratio:** App Store rejects screenshots that don't match the
+  device's exact aspect ratio. The final uploads use `ratio/` (caption + device inside
+  the native 1320×2868 / 1206×2622 / 2048×2732 canvas). The bigger `styled/` padded
+  versions are for marketing only and were cleaned off ASC.
