@@ -16,6 +16,12 @@ iOS app first, using xtool/SwiftUI with a JavaScriptCore bridge.
   generates the agent's bundled `Resources/scriptable-api.json` lookup data.
   Run `bun run tools/generate-api-spec.mjs` after any extraction changes.
 - **The Scriptable bundle is gitignored** (`third-party/`). Inspect it there; never commit it.
+- **Keep the `skills/stupid-widget-creator` skill in sync** with the implemented API. The skill
+  (`SKILL.md` + `references/`) documents the working JS bridge subset and rendering behavior. When
+  you register new API members, implement previously no-op properties, add widget families, or change
+  the `.widget` file format, update the skill's `SKILL.md` and `references/` accordingly, and rerun
+  `scripts/make_widget.mjs` validation if the envelope format changes. The skill is symlinked from
+  `~/.config/opencode/skills/stupid-widget-creator`; keep both copies consistent by editing here.
 
 ## Tech stack
 

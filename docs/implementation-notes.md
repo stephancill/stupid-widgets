@@ -1,5 +1,30 @@
 # Implementation Notes
 
+## 2026-09-03 — Added `stupid-widget-creator` skill
+
+- Created `skills/stupid-widget-creator` in this repository: an opencode skill for creating,
+  designing, and debugging stupid widgets (`.widget` JavaScript scripts for the app).
+- `SKILL.md` covers the creation workflow, script anatomy (`config.runsInWidget`,
+  `Script.setWidget`, `Script.complete`, `presentMedium()` preview branch), data-source guidance with
+  `Request`, and the hard limits of the current implementation.
+- `references/api.md` documents the implemented JS bridge subset and the `.widget` JSON envelope
+  (fields, palette/glyph metadata, UUID), plus a validation checklist.
+- `references/design.md` covers family sizes (small 155×155 / medium 329×155 / large 329×345 /
+  extraLarge 345×345), layout guidance, refresh strategy, graceful-degradation patterns, and
+  verification steps.
+- `scripts/make_widget.mjs` wraps a JS source file into a valid `.widget` envelope (random UUID,
+  correct JSON escaping); verified with a sample script, passes oxlint.
+- `assets/starter.widget` is a ready-to-copy starter envelope.
+- Documented the rendering limitations so agents avoid no-op members: `WidgetText` shadows,
+  `WidgetStack` backgrounds/size/corner/border, `WidgetImage` border/tint, `Color.dynamic`, and
+  `url` (stored, not tappable) — stacks render only layout, spacing, and children.
+- Symlinked to the global skills collection at
+  `~/.config/opencode/skills/stupid-widget-creator` and added a ground rule to `AGENTS.md` requiring
+  the skill be kept in sync whenever the implemented API, rendering behavior, or `.widget` format
+  changes.
+
+---
+
 ## 2026-08-30 — Populated App Store listing via ASC API
 
 - Attached build 13 to the existing App Store version `1.0`

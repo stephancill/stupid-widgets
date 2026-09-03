@@ -1,0 +1,8 @@
+{
+  "name": "Starter Widget",
+  "icon": { "color": "purple", "glyph": "sun" },
+  "script": "const widget = new ListWidget();\nwidget.setPadding(16, 16, 16, 16);\nwidget.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000);\n\nconst title = widget.addText(\"Hello\");\ntitle.font = Font.boldSystemFont(16);\ntitle.textColor = Color.white();\n\nwidget.addSpacer(8);\n\nconst sub = widget.addText(\"stupid widgets\");\nsub.font = Font.systemFont(12);\nsub.textColor = new Color(\"#94a3b8\");\n\nif (config.runsInWidget) {\n  Script.setWidget(widget);\n} else {\n  await widget.presentMedium();\n}\nScript.complete();\n",
+  "always_run_in_app": false,
+  "preview_family": "medium",
+  "share_sheet_inputs": []
+}
