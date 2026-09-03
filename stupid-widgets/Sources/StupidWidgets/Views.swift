@@ -852,38 +852,24 @@ struct SettingsSheet: View {
   var body: some View {
     NavigationStack {
       Form {
-        Section("Coding Assistance") {
-          HStack {
-            Text("ChatGPT")
-            Spacer()
-            if let email = auth.credential?.email {
-              Text(email)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            }
-          }
-          if auth.isSignedIn {
-            Button("Sign Out") {
-              auth.signOut()
-            }
-          } else {
-            Button(auth.isSigningIn ? "Signing In…" : "Connect") {
-              auth.signIn()
-            }
-            .disabled(auth.isSigningIn)
-          }
-          if let error = auth.errorMessage {
-            Text(error)
-              .font(.caption)
-              .foregroundStyle(.secondary)
-          }
-        }
         Section {
+          NavigationLink {
+            ProviderView()
+          } label: {
+            HStack {
+              Text("Provider")
+              Spacer()
+              Text(auth.isSignedIn ? "ChatGPT" : "None")
+                .foregroundStyle(.secondary)
+            }
+          }
           NavigationLink {
             AssistantInstructionsEditorView(settings: settings)
           } label: {
-            Text("Coding Assistant Instructions")
+            Text("Instructions")
           }
+        } header: {
+          Text("Coding Assistance")
         } footer: {
           Text("These instructions are injected into every conversation with the coding assistant.")
         }
@@ -901,6 +887,57 @@ struct SettingsSheet: View {
   }
 }
 
+struct ProviderView: View {
+  @ObservedObject private var auth = OpenAIAuth.shared
+
+  var body: some View {
+    Form {
+      Section {
+        HStack {
+          Text("Provider")
+          Spacer()
+          Text(auth.isSignedIn ? "ChatGPT" : "None")
+            .foregroundStyle(.secondary)
+        }
+        if auth.isSignedIn {
+          HStack {
+            Text("Account")
+            Spacer()
+            if let email = auth.credential?.email {
+              Text(email)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
+          }
+        }
+      }
+      if auth.isSignedIn {
+        Section {
+          Button("Sign Out") {
+            auth.signOut()
+          }
+        }
+      } else {
+        Section {
+          Button(auth.isSigningIn ? "Signing In…" : "Connect ChatGPT") {
+            auth.signIn()
+          }
+          .disabled(auth.isSigningIn)
+        }
+      }
+      if let error = auth.errorMessage {
+        Section {
+          Text(error)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+    }
+    .navigationTitle("Provider")
+    .navigationBarTitleDisplayMode(.inline)
+  }
+}
+
 struct AssistantInstructionsEditorView: View {
   @ObservedObject var settings: AssistantSettings
 
@@ -910,7 +947,7 @@ struct AssistantInstructionsEditorView: View {
       .scrollContentBackground(.hidden)
       .padding(8)
       .background(Color(uiColor: .secondarySystemBackground))
-      .navigationTitle("Coding Assistant Instructions")
+      .navigationTitle("Instructions")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
@@ -921,3 +958,4 @@ struct AssistantInstructionsEditorView: View {
       }
   }
 }
+

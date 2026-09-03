@@ -255,13 +255,14 @@ Responses tool loop:
   returning names + line counts) and `read_widget(name, offset?, limit?)` (bounded numbered lines of
   another widget) so it can reuse established widget styles. It is told to inspect other widgets but
   only edit the one being edited.
-- The script list gains a **Settings** gear (top right) opening a sheet that manages the ChatGPT
-  connection and persisted **Coding Assistant Instructions**. The ChatGPT row shows the account email
-  (extracted from the access-token/id-token JWT `https://api.openai.com/profile.email` claim — no
-  extra API call) with a Sign Out button on its own row below. Instructions default to a Hello Widget
-  style guide (navy `#1b1b2f` + `#16222A → #3A6073` gradient, white bold 16 pt title, medium 13 pt
-  date at 0.85 opacity, `addSpacer(8)`, vertical layout), are edited in a pushed full-screen editor
-  (Reset in the top-right toolbar), are injected into every assistant conversation via
+- The script list gains a **Settings** gear (top right) opening a sheet whose **Coding Assistance**
+  section has two chevron rows: **Provider** (trailing `ChatGPT`/`None` in gray) pushing a Provider
+  screen (provider, account email extracted from the access/id-token JWT
+  `https://api.openai.com/profile.email` claim — no extra API call — and a Sign Out button; Connect
+  ChatGPT when signed out), and **Instructions** pushing a full-screen editor (body font, Reset in the
+  top-right toolbar). Instructions default to a Hello Widget style guide (navy `#1b1b2f` +
+  `#16222A → #3A6073` gradient, white bold 16 pt title, medium 13 pt date at 0.85 opacity,
+  `addSpacer(8)`, vertical layout), are injected into every assistant conversation via
   `AssistantSettings.current()`, and sync through `NSUbiquitousKeyValueStore` (iCloud) alongside
   UserDefaults.
 - Tool calls are accumulated by Responses item ID, replayed with `function_call_output`, and may run

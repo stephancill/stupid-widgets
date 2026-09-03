@@ -1,5 +1,21 @@
 # Implementation Notes
 
+## 2026-09-03 — Coding Assistance section rework: Provider + Instructions rows
+
+- The Settings **Coding Assistance** section now has two chevron rows:
+  - **Provider** — trailing value `ChatGPT` / `None` in the same secondary (gray) styling as the
+    existing right-aligned values.
+  - **Instructions** — pushes the (renamed) instructions editor.
+- A new **Provider** screen is pushed from the Provider row and shows the Provider value, the Account
+  email (extracted from the access/id-token JWT `https://api.openai.com/profile.email` claim), and a
+  Sign Out button; the signed-out state shows a Connect ChatGPT button and no account row.
+- The instructions editor title now reads "Instructions" (was "Coding Assistant Instructions").
+- Verified on the `NoFeed 6.5 iPh11PM` simulator: main settings shows `Provider ChatGPT ›` and
+  `Instructions ›`; the Provider screen shows Provider=ChatGPT, Account=stephan@stephancill.co.za,
+  and Sign Out. Not installed to the iPhone per request.
+
+---
+
 ## 2026-09-03 — Settings polish: account email, chevron editor, iCloud instructions
 
 - **ChatGPT row simplified**: the settings section now shows a plain `ChatGPT` row (no leading
