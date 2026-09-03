@@ -852,7 +852,7 @@ struct SettingsSheet: View {
   var body: some View {
     NavigationStack {
       Form {
-        Section("ChatGPT") {
+        Section("Coding Assistance") {
           HStack {
             Text("ChatGPT")
             Spacer()
@@ -885,9 +885,7 @@ struct SettingsSheet: View {
             Text("Coding Assistant Instructions")
           }
         } footer: {
-          Text(
-            "These instructions are injected into every conversation with the coding assistant and sync across your devices with iCloud."
-          )
+          Text("These instructions are injected into every conversation with the coding assistant.")
         }
       }
       .navigationTitle("Settings")
