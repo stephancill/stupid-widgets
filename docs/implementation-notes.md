@@ -1,5 +1,18 @@
 # Implementation Notes
 
+## 2026-09-03 — Release 1.0.0 (14) to public TestFlight
+
+- Bumped `CFBundleVersion` 13 → 14 in both `Info.plist` and `WidgetExtension-Info.plist` (marketing
+  version stays `1.0.0`), passed `release preflight`, archived, and uploaded build
+  `628a5fd8-17bd-48b2-9735-39b37d151eac`.
+- Added the build to the `External Testers` beta group and submitted external review; App Store
+  Connect now reports **external beta `IN_BETA_TESTING`** (public TestFlight live). The CLI's initial
+  "timed out awaiting external review" was just the wait window expiring before Apple completed
+  review.
+- Release manifest and IPA live under untracked `.release/` (never committed).
+
+---
+
 ## 2026-09-03 — Coding Assistance section rework: Provider + Instructions rows
 
 - The Settings **Coding Assistance** section now has two chevron rows:
