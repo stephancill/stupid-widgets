@@ -1,5 +1,60 @@
 # Implementation Notes
 
+## 2026-09-03 — Settings, widget-library tools, in-memory chat history, message rewind
+
+- Added a **Settings** gear button to the script list's top-right toolbar
+  (`ScriptListView`) opening a new `SettingsSheet`:
+  - **ChatGPT connection management** — shows signed-in status with Connect/Sign Out,
+    including in-flight sign-in state and OAuth errors. (Previously there was no sign-out
+    affordance in-app; the old disconnect action had been removed.)
+  - **Coding Assistant Instructions** — an editable `TextEditor` whose contents are
+    injected into every coding-assistant conversation. Persisted in UserDefaults under
+    `net.stupidtech.stupidwidgets.assistantInstructions`; pre-populated with a Hello
+    Widget style guide (dark navy `#1b1b2f`, `#16222A → #3A6073` vertical gradient with
+    locations `[0, 1]`, white bold 16 pt title, medium 13 pt date at 0.85 opacity,
+    `addSpacer(8)`, vertical layout) plus a "Reset to Hello Widget Style" button.
+    `AssistantSettings` (new file) is a shared `ObservableObject` and feeds
+    `AgentAIClient.systemPrompt` via `AssistantSettings.current()`.
+- Added two **widget-library tools** so the coding assistant can reuse existing widgets:
+  `search_widgets(query)` (case-insensitive name substring → names + line counts) and
+  `read_widget(name, offset?, limit?)` (bounded, one-based numbered lines of another
+  widget). The model is told it may inspect other widgets but only modify the one being
+  edited. `AgentAIClient.chat` now receives the current `[WidgetReference]` snapshot
+  (name + source of every script in the store) and passes it into `ScriptAgentTools`.
+- Chat history is now **persisted in memory** across follow-up messages:
+  - New `AgentConversation` (`@MainActor`) holds the full Responses input-item list
+    (user messages, reasoning continuations, `function_call`/`function_call_output`,
+    assistant `output_text` summaries). `AgentAIClient.chat` seeds its working input from
+    it, appends every turn's item, and writes the result back before finishing or failing,
+    so follow-ups carry the complete session (including prior tool calls). The final
+    assistant output text is now also appended to the conversation for the next turn.
+    Nothing here is written to disk, so the history does not survive force quits.
+  - `ChatViewModel` drops `messageInput`; `send` no longer needs the old messages-only
+    input, and `messages` stays as lightweight bookkeeping for the rewind truncation.
+- Reworked **Undo into per-message rewind** (`ChatViewModel.undo()`):
+  - Each message that changes the script records a `ChatRewind` (prompt, source-before,
+    pre-message message/item counts) in `rewindRecords`.
+  - Undo now pops that record, truncates both `messages` and `AgentConversation.items`
+    back to before the previous message, restores `source`, **re-populates the prompt
+    field with that message's text**, and reruns — so the user sees the request that was
+    rewinded. EditorView no longer keeps its own `undoSources`/`pendingUndoSource` stack.
+- Fixed a `read_widget` bug found by the new tests: a `guard let name = … , let widget =
+  …` combined guard leaked the *tool name* (`read_widget`) into the "No widget named …"
+  error path (guard-bound constants aren't visible inside the `else`). Split into two
+  guards so the error reports the real requested name.
+- Tests: added `search_widgets`, `read_widget` (found + rejection), and
+  `AgentConversation` truncation/replace coverage. All 38 simulator tests pass through the
+  generated `StupidWidgets-Package` scheme.
+- Simulator verification (NoFeedSocial + NoFeed 6.5 iPh11PM) required the documented
+  iCloud-entitlement launch workaround (re-sign a copy with only
+  `com.apple.security.application-groups`). Verified on `NoFeed 6.5 iPh11PM`
+  (`F3CC8933-53E2-4FA5-9754-908812BBDC1B`): settings sheet opens from the gear, shows
+  Connect (signed out) / instructions pre-populated with the style guide / footer / Reset
+  button, and the detail view still renders Hello World with the signed-out
+  "Edit with ChatGPT" pill. Signed-in undo/history E2E needs OpenAI credentials.
+
+---
+
 ## 2026-09-03 — Added `stupid-widget-creator` skill
 
 - Created `skills/stupid-widget-creator` in this repository: an opencode skill for creating,

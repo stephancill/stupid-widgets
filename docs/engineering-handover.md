@@ -1,6 +1,6 @@
 # stupid widgets Engineering Handover
 
-Last updated: 2026-08-20
+Last updated: 2026-09-03
 
 ## Current state
 
@@ -251,16 +251,31 @@ Responses tool loop:
 - The model receives `read_script(offset, limit)` and `edit_script(old_text, new_text)` tools rather
   than the entire editor contents. Reads are capped at 200 numbered lines. Edits require one exact,
   unique match and fail loudly on zero or multiple matches.
+- The model can also `search_widgets(query)` (case-insensitive name search across the user's library,
+  returning names + line counts) and `read_widget(name, offset?, limit?)` (bounded numbered lines of
+  another widget) so it can reuse established widget styles. It is told to inspect other widgets but
+  only edit the one being edited.
+- The script list gains a **Settings** gear (top right) opening a sheet that manages the ChatGPT
+  connection (Connect/Sign Out) and a persisted **Coding Assistant Instructions** text area. The
+  instructions default to a Hello Widget style guide (navy `#1b1b2f` + `#16222A → #3A6073` gradient,
+  white bold 16 pt title, medium 13 pt date at 0.85 opacity, `addSpacer(8)`, vertical layout) and are
+  injected into every assistant conversation via `AssistantSettings.current()`.
 - Tool calls are accumulated by Responses item ID, replayed with `function_call_output`, and may run
   for up to one hundred provider turns. Encrypted reasoning continuation data is preserved with
   `store: false`.
+- Chat history is persisted **in memory** for the lifetime of the detail view: an `AgentConversation`
+  retains every Responses input item (user messages, reasoning, tool calls/outputs, assistant text)
+  across follow-up messages, so a follow-up prompt carries the full prior session including tool
+  activity. It is never written to disk and does not survive force quits.
 - Successful edit tools update the editor through the normal autosave path; final assistant text is
   only a short summary and no longer reproduces the full script.
 - Script details expose an inline bottom control rather than a separate assistant screen: standalone
   Undo and Reload buttons flank a material-capsule prompt with its own Play submit action. Prompt text
   stays visible and editing/Undo are disabled during a request, then the prompt clears on completion.
-  Successful edits rerun the widget; Undo restores the source snapshot from before the latest AI edit
-  and reruns it, while Reload executes the current source again in a fresh runtime.
+  Successful edits rerun the widget.
+- Undo rewinds the **previous message**: it restores the source snapshot captured before that message's
+  edits, truncates the in-memory chat history back to before that message, reruns the widget, and
+  re-populates the prompt field with the rewinded request so the user can see exactly what was undone.
 - Cancellation terminates the local stream task.
 
 The ChatGPT backend endpoint and borrowed OpenCode client registration are undocumented interfaces.

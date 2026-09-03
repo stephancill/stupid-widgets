@@ -1,6 +1,13 @@
 import Foundation
 import SwiftUI
 
+struct ChatRewind {
+  let prompt: String
+  let sourceBefore: String
+  let messageCount: Int
+  let itemCount: Int
+}
+
 @MainActor
 final class ChatViewModel: ObservableObject {
   @Published var messages: [AIChatMessage] = []
@@ -10,12 +17,29 @@ final class ChatViewModel: ObservableObject {
   @Published var errorMessage: String?
   let auth = OpenAIAuth.shared
   private var streamingTask: Task<Void, Never>?
+  private let conversation = AgentConversation()
+  private var rewindRecords: [ChatRewind] = []
+  private var pendingRewind: ChatRewind?
+
+  var canUndo: Bool { !rewindRecords.isEmpty }
 
   func send(
-    _ prompt: String, script: String?, onInsert: @escaping (String) -> Void,
+    _ prompt: String,
+    script: String?,
+    widgets: [WidgetReference],
+    onInsert: @escaping (String) -> Void,
     onFinish: @escaping (Bool) -> Void
   ) {
-    messages.append(AIChatMessage(role: "user", content: prompt))
+    let request = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !request.isEmpty, !isStreaming else { return }
+    pendingRewind = ChatRewind(
+      prompt: request,
+      sourceBefore: script ?? "",
+      messageCount: messages.count,
+      itemCount: conversation.count
+    )
+    messages.append(AIChatMessage(role: "user", content: request))
+    conversation.appendUserMessage(request)
     isStreaming = true
     streamingText = ""
     currentTool = nil
@@ -25,7 +49,9 @@ final class ChatViewModel: ObservableObject {
       var accumulated = ""
       var changedScript = false
       do {
-        for try await event in client.chat(messages: messages, script: script) {
+        for try await event in client.chat(
+          conversation: conversation, script: script, widgets: widgets)
+        {
           switch event {
           case .textDelta(let delta):
             accumulated += delta
@@ -49,12 +75,26 @@ final class ChatViewModel: ObservableObject {
           AIChatMessage(
             role: "assistant", content: "Error: \(error.localizedDescription)"))
       }
+      if changedScript, let rewind = pendingRewind {
+        rewindRecords.append(rewind)
+      }
+      pendingRewind = nil
       isStreaming = false
       streamingText = ""
       currentTool = nil
       streamingTask = nil
       onFinish(changedScript)
     }
+  }
+
+  func undo() -> (prompt: String, source: String)? {
+    guard let record = rewindRecords.popLast() else { return nil }
+    pendingRewind = nil
+    conversation.truncate(to: record.itemCount)
+    if messages.count > record.messageCount {
+      messages.removeLast(messages.count - record.messageCount)
+    }
+    return (record.prompt, record.sourceBefore)
   }
 
   func cancel() {

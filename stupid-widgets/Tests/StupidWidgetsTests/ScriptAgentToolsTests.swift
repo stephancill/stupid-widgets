@@ -77,6 +77,64 @@ final class ScriptAgentToolsTests: XCTestCase {
     XCTAssertTrue(result.text.contains("Continue editing"))
   }
 
+  func testSearchWidgetsReturnsOnlyMatchingNames() {
+    let result = ScriptAgentTools.execute(
+      name: "search_widgets",
+      argumentsJSON: #"{"query":"hello"}"#,
+      script: "",
+      widgetLibrary: [
+        WidgetReference(name: "Hello Widget", source: "const widget = new ListWidget()"),
+        WidgetReference(name: "Read MacStories", source: "const request = new Request(url)"),
+      ]
+    )
+
+    XCTAssertFalse(result.didUpdateScript)
+    XCTAssertTrue(result.text.contains(#""name":"Hello Widget""#))
+    XCTAssertTrue(result.text.contains(#""line_count":1"#))
+    XCTAssertFalse(result.text.contains("Read MacStories"))
+  }
+
+  func testReadWidgetReturnsBoundedNumberedLines() {
+    let result = ScriptAgentTools.execute(
+      name: "read_widget",
+      argumentsJSON: #"{"name":"Hello Widget","offset":1,"limit":2}"#,
+      script: "",
+      widgetLibrary: [
+        WidgetReference(name: "Hello Widget", source: "line one\nline two\nline three")
+      ]
+    )
+
+    XCTAssertFalse(result.didUpdateScript)
+    XCTAssertTrue(result.text.contains(#""name":"Hello Widget""#))
+    XCTAssertTrue(result.text.contains(#"1: line one\n2: line two"#))
+    XCTAssertTrue(result.text.contains(#""next_offset":3"#))
+  }
+
+  func testReadWidgetRejectsUnknownName() {
+    let result = ScriptAgentTools.execute(
+      name: "read_widget",
+      argumentsJSON: #"{"name":"Missing Widget"}"#,
+      script: "",
+      widgetLibrary: [WidgetReference(name: "Hello Widget", source: "const widget = new ListWidget()")]
+    )
+
+    XCTAssertFalse(result.didUpdateScript)
+    XCTAssertTrue(result.text.contains("No widget named Missing Widget"))
+    XCTAssertTrue(result.text.contains("search_widgets"))
+  }
+
+  func testConversationTruncationRewindsItemHistory() {
+    let conversation = AgentConversation()
+    XCTAssertEqual(conversation.count, 0)
+    conversation.appendUserMessage("first message")
+    conversation.appendUserMessage("second message")
+    XCTAssertEqual(conversation.count, 2)
+    conversation.truncate(to: 1)
+    XCTAssertEqual(conversation.count, 1)
+    conversation.replace(with: [["role": "user", "content": []]])
+    XCTAssertEqual(conversation.count, 1)
+  }
+
   func testWidgetValidationReportsRuntimeFailure() async throws {
     let error = try await ScriptAgentValidator.widgetError(
       source: "throw new Error('broken widget')",

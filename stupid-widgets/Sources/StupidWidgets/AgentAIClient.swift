@@ -1,5 +1,33 @@
 import Foundation
 
+struct WidgetReference {
+  let name: String
+  let source: String
+}
+
+@MainActor
+final class AgentConversation {
+  private(set) var items: [[String: Any]] = []
+
+  var count: Int { items.count }
+
+  func appendUserMessage(_ text: String) {
+    items.append([
+      "role": "user",
+      "content": [["type": "input_text", "text": text]],
+    ])
+  }
+
+  func replace(with newItems: [[String: Any]]) {
+    items = newItems
+  }
+
+  func truncate(to count: Int) {
+    guard items.count > count else { return }
+    items.removeLast(items.count - count)
+  }
+}
+
 enum ScriptAgentEvent {
   case textDelta(String)
   case scriptUpdated(String)
@@ -18,7 +46,8 @@ struct ScriptAgentTools {
     argumentsJSON: String,
     script: String,
     compilationError: ((String) -> String?)? = nil,
-    apiDocumentation: ScriptAPIDocumentation? = nil
+    apiDocumentation: ScriptAPIDocumentation? = nil,
+    widgetLibrary: [WidgetReference] = []
   )
     -> ScriptAgentToolOutput
   {
@@ -65,6 +94,62 @@ struct ScriptAgentTools {
         .joined(separator: "\n")
       return ScriptAgentToolOutput(
         text: jsonString([
+          "content": content,
+          "line_count": lines.count,
+          "next_offset": end < lines.count ? end + 1 : NSNull(),
+        ]),
+        script: script,
+        didUpdateScript: false
+      )
+    case "search_widgets":
+      guard let query = arguments["query"] as? String,
+        !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      else {
+        return output(error: "query must be non-empty.", script: script)
+      }
+      let normalized = query.lowercased()
+      let matches = widgetLibrary.filter { $0.name.lowercased().contains(normalized) }
+      let widgets = matches.map { widget -> [String: Any] in
+        [
+          "name": widget.name,
+          "line_count": widget.source.components(separatedBy: "\n").count,
+        ]
+      }
+      return ScriptAgentToolOutput(
+        text: jsonString(["widgets": widgets]),
+        script: script,
+        didUpdateScript: false
+      )
+    case "read_widget":
+      guard let name = arguments["name"] as? String else {
+        return output(error: "name must be non-empty.", script: script)
+      }
+      guard
+        let widget = widgetLibrary.first(where: {
+          $0.name.caseInsensitiveCompare(name) == .orderedSame
+        })
+      else {
+        return output(
+          error:
+            "No widget named \(name). Use search_widgets to find the exact widget names before reading.",
+          script: script
+        )
+      }
+      let lines = widget.source.components(separatedBy: "\n")
+      let offset = max(arguments["offset"] as? Int ?? 1, 1)
+      let limit = min(max(arguments["limit"] as? Int ?? 100, 1), 200)
+      guard offset <= lines.count else {
+        return output(
+          error: "Offset \(offset) exceeds \(lines.count) lines for \(name).", script: script)
+      }
+      let end = min(offset - 1 + limit, lines.count)
+      let content = lines[(offset - 1)..<end]
+        .enumerated()
+        .map { "\(offset + $0.offset): \($0.element)" }
+        .joined(separator: "\n")
+      return ScriptAgentToolOutput(
+        text: jsonString([
+          "name": widget.name,
           "content": content,
           "line_count": lines.count,
           "next_offset": end < lines.count ? end + 1 : NSNull(),
@@ -175,15 +260,16 @@ struct AgentAIClient {
   }
 
   func chat(
-    messages: [AIChatMessage],
-    script: String?
+    conversation: AgentConversation,
+    script: String?,
+    widgets: [WidgetReference]
   ) -> AsyncThrowingStream<ScriptAgentEvent, Error> {
     AsyncThrowingStream { continuation in
       let task = Task {
+        var input = conversation.items
+        var workingScript = script ?? ""
         do {
           let credential = try await auth.validCredential()
-          var input = messageInput(messages: messages)
-          var workingScript = script ?? ""
           let validationRuntime = JSRuntime()
           var didUpdateScript = false
 
@@ -219,6 +305,13 @@ struct AgentAIClient {
                 ])
                 continue
               }
+              if !result.outputText.isEmpty {
+                input.append([
+                  "role": "assistant",
+                  "content": [["type": "output_text", "text": result.outputText]],
+                ])
+              }
+              conversation.replace(with: input)
               continuation.finish()
               return
             }
@@ -236,7 +329,8 @@ struct AgentAIClient {
                 name: call.name,
                 argumentsJSON: call.arguments,
                 script: workingScript,
-                compilationError: validationRuntime.compilationError
+                compilationError: validationRuntime.compilationError,
+                widgetLibrary: widgets
               )
               workingScript = output.script
               if output.didUpdateScript {
@@ -250,8 +344,10 @@ struct AgentAIClient {
               ])
             }
           }
-          throw AIClientError.server("ChatGPT exceeded the tool-call limit after one hundred turns.")
+          throw AIClientError.server(
+            "ChatGPT exceeded the tool-call limit after one hundred turns.")
         } catch {
+          conversation.replace(with: input)
           continuation.finish(throwing: error)
         }
       }
@@ -368,20 +464,6 @@ struct AgentAIClient {
     return TurnResult(calls: calls, reasoningItems: reasoningItems, outputText: outputText)
   }
 
-  private func messageInput(messages: [AIChatMessage]) -> [[String: Any]] {
-    messages.map { message in
-      [
-        "role": message.role,
-        "content": [
-          [
-            "type": message.role == "assistant" ? "output_text" : "input_text",
-            "text": message.content,
-          ]
-        ],
-      ] as [String: Any]
-    }
-  }
-
   private func requestBody(input: [[String: Any]]) -> [String: Any] {
     [
       "model": "gpt-5.4-mini",
@@ -435,6 +517,41 @@ struct AgentAIClient {
       ],
       [
         "type": "function",
+        "name": "search_widgets",
+        "description":
+          "Search the user's library of existing widget scripts by name. Use this to find reusable widget files before creating or editing scripts; the result lists matching widget names and their line counts.",
+        "parameters": [
+          "type": "object",
+          "properties": [
+            "query": [
+              "type": "string",
+              "description": "Case-insensitive substring to match against widget names.",
+            ]
+          ],
+          "required": ["query"],
+          "additionalProperties": false,
+        ],
+        "strict": false,
+      ],
+      [
+        "type": "function",
+        "name": "read_widget",
+        "description":
+          "Read a bounded range of another widget's source by exact name, with one-based line numbers. Use it to reuse an existing widget's style, structure, or logic. Only the widget being edited may be modified.",
+        "parameters": [
+          "type": "object",
+          "properties": [
+            "name": ["type": "string", "description": "Exact widget name."],
+            "offset": ["type": "integer", "description": "One-based starting line."],
+            "limit": ["type": "integer", "description": "Maximum lines, up to 200."],
+          ],
+          "required": ["name"],
+          "additionalProperties": false,
+        ],
+        "strict": false,
+      ],
+      [
+        "type": "function",
         "name": "edit_script",
         "description": "Replace one exact, unique text block in the current editor script.",
         "parameters": [
@@ -453,7 +570,10 @@ struct AgentAIClient {
 
   private var systemPrompt: String {
     """
-    You edit JavaScript in stupid widgets, an iOS Scriptable-compatible JavaScriptCore runtime. Inspect only relevant ranges with read_script, then make minimal exact replacements with edit_script. Never reproduce the full script in text. Keep unrelated code unchanged. Use search_api to confirm API names, signatures, properties, return values, and behavior instead of guessing. The search results describe canonical Scriptable; use only these currently supported APIs: ListWidget and widget elements, Request, FileManager, Data, Image, Color, Font, Alert, UITable, Notification, Keychain, Pasteboard, Device, SFSymbol, Timer, DateFormatter, QuickLook, Safari, config, args, module, importModule, console, and Script. Use Request rather than fetch. Async/await is supported. Always await async entry-point calls so script execution does not finish before the widget is ready. For widgets call Script.setWidget(widget) and Script.complete(). If edit_script reports compilation_error or widget runtime validation reports a failure, do not finish: inspect the affected code and continue editing until validation succeeds. After successful edits, briefly summarize what changed.
+    You edit JavaScript in stupid widgets, an iOS Scriptable-compatible JavaScriptCore runtime. Inspect only relevant ranges with read_script, then make minimal exact replacements with edit_script. Never reproduce the full script in text. Keep unrelated code unchanged. Use search_api to confirm API names, signatures, properties, return values, and behavior instead of guessing. The search results describe canonical Scriptable; use only these currently supported APIs: ListWidget and widget elements, Request, FileManager, Data, Image, Color, Font, Alert, UITable, Notification, Keychain, Pasteboard, Device, SFSymbol, Timer, DateFormatter, QuickLook, Safari, config, args, module, importModule, console, and Script. Use Request rather than fetch. Async/await is supported. Always await async entry-point calls so script execution does not finish before the widget is ready. For widgets call Script.setWidget(widget) and Script.complete(). Use search_widgets to find the user's other widgets by name and read_widget to inspect their source when matching or reusing existing widget styles would help; never modify any widget other than the one being edited. If edit_script reports compilation_error or widget runtime validation reports a failure, do not finish: inspect the affected code and continue editing until validation succeeds. After successful edits, briefly summarize what changed.
+
+    ## Coding assistant instructions
+    \(AssistantSettings.current())
     """
   }
 }

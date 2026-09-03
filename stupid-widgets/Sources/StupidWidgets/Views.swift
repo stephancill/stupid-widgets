@@ -20,6 +20,7 @@ struct ScriptListView: View {
   @State private var renaming: Script?
   @State private var renameText = ""
   @State private var navigationPath: [UUID] = []
+  @State private var showingSettings = false
   @FocusState private var isNameFieldFocused: Bool
 
   var body: some View {
@@ -56,11 +57,22 @@ struct ScriptListView: View {
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
           Button {
+            showingSettings = true
+          } label: {
+            Image(systemName: "gearshape")
+          }
+          .accessibilityLabel("Settings")
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+          Button {
             createAndOpenWidget()
           } label: {
             Image(systemName: "plus")
           }
         }
+      }
+      .sheet(isPresented: $showingSettings) {
+        SettingsSheet()
       }
       .alert(
         "Rename Widget",
@@ -228,8 +240,6 @@ struct EditorView: View {
   @State private var showingCode = false
   @State private var hasRun = false
   @State private var prompt = ""
-  @State private var undoSources: [String] = []
-  @State private var pendingUndoSource: String?
   @State private var isEditingTitle = false
   @State private var titleText = ""
   @State private var previewFamily = WidgetPreviewFamily.medium
@@ -357,20 +367,16 @@ struct EditorView: View {
       auth.signIn()
       return
     }
-    pendingUndoSource = source
+    let widgets = store.scripts.map { WidgetReference(name: $0.name, source: $0.source) }
     chat.send(
       request,
       script: source,
+      widgets: widgets,
       onInsert: { updatedSource in
         guard updatedSource != source else { return }
-        if let previousSource = pendingUndoSource {
-          undoSources.append(previousSource)
-          pendingUndoSource = nil
-        }
         source = updatedSource
       },
       onFinish: { changedSource in
-        pendingUndoSource = nil
         prompt = ""
         if changedSource { run() }
       }
@@ -383,12 +389,12 @@ struct EditorView: View {
     } else {
       chat.cancel()
     }
-    pendingUndoSource = nil
   }
 
   private func undoChanges() {
-    guard let previousSource = undoSources.popLast() else { return }
-    source = previousSource
+    guard let rewind = chat.undo() else { return }
+    source = rewind.source
+    prompt = rewind.prompt
     run()
   }
 
@@ -403,7 +409,7 @@ struct EditorView: View {
         }
         ChangePromptField(
           prompt: $prompt,
-          canUndo: !undoSources.isEmpty,
+          canUndo: chat.canUndo,
           isWorking: chat.isStreaming || auth.isSigningIn,
           onUndo: undoChanges,
           onSubmit: submitPrompt,
@@ -832,6 +838,71 @@ struct TableSheet: View {
     case .button:
       Button(cell.text ?? "") { cell.onTap?.call(withArguments: []) }
         .buttonStyle(.bordered)
+    }
+  }
+}
+
+// MARK: - Settings
+
+struct SettingsSheet: View {
+  @ObservedObject private var auth = OpenAIAuth.shared
+  @ObservedObject private var settings = AssistantSettings.shared
+  @Environment(\.dismiss) private var dismiss
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        Section("ChatGPT") {
+          HStack {
+            Label(
+              "ChatGPT",
+              systemImage: auth.isSignedIn
+                ? "person.crop.circle.fill.badge.checkmark" : "person.crop.circle.badge.questionmark"
+            )
+            Spacer()
+            if auth.isSignedIn {
+              Button("Sign Out", role: .destructive) {
+                auth.signOut()
+              }
+            } else {
+              Button(auth.isSigningIn ? "Signing In…" : "Connect") {
+                auth.signIn()
+              }
+              .disabled(auth.isSigningIn)
+            }
+          }
+          if let error = auth.errorMessage {
+            Text(error)
+              .font(.caption)
+              .foregroundStyle(.red)
+          }
+        }
+        Section {
+          TextEditor(text: $settings.instructions)
+            .font(.system(size: 13, design: .monospaced))
+            .frame(minHeight: 240)
+        } header: {
+          Text("Coding Assistant Instructions")
+        } footer: {
+          Text(
+            "These instructions are injected into every conversation with the coding assistant. The default keeps new widgets styled like the Hello Widget sample."
+          )
+        }
+        Section {
+          Button("Reset to Hello Widget Style") {
+            settings.reset()
+          }
+        }
+      }
+      .navigationTitle("Settings")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Done") {
+            dismiss()
+          }
+        }
+      }
     }
   }
 }
