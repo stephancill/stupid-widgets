@@ -942,20 +942,23 @@ struct AssistantInstructionsEditorView: View {
   @ObservedObject var settings: AssistantSettings
 
   var body: some View {
-    TextEditor(text: $settings.instructions)
-      .font(.body)
-      .scrollContentBackground(.hidden)
-      .padding(8)
-      .background(Color(uiColor: .secondarySystemBackground))
-      .navigationTitle("Instructions")
-      .navigationBarTitleDisplayMode(.inline)
-      .toolbar {
-        ToolbarItem(placement: .topBarTrailing) {
-          Button("Reset") {
-            settings.reset()
-          }
+    Form {
+      Section {
+        TextEditor(text: $settings.instructions)
+          .font(.body)
+          .frame(minHeight: 320)
+      }
+    }
+    .navigationTitle("Instructions")
+    .navigationBarTitleDisplayMode(.inline)
+    .toolbar {
+      ToolbarItem(placement: .topBarTrailing) {
+        Button("Reset") {
+          settings.reset()
         }
       }
+    }
   }
 }
+
 
