@@ -1,0 +1,153 @@
+// Stupid Counter Widget (Small)
+// Layout:
+// stupid
+// 123k
+// Search
+// 1.23m
+// RPC
+
+const EVM_STATS_URL = "https://evm.stupidtech.net/stats";
+const SEARCH_STATS_URL = "https://search.stupidtech.net/stats";
+const REFRESH_MINUTES = 5;
+
+async function fetchJSON(url) {
+  const req = new Request(url);
+  req.timeoutInterval = 10;
+  return await req.loadJSON();
+}
+
+async function fetchEvmRequestsServed() {
+  const data = await fetchJSON(EVM_STATS_URL);
+  const value = data?.metrics?.requestsServed;
+  if (typeof value !== "number") throw new Error("Bad EVM response");
+  return value;
+}
+
+async function fetchSearchQueriesServed() {
+  const data = await fetchJSON(SEARCH_STATS_URL);
+  const value = data?.count;
+  if (typeof value !== "number") throw new Error("Bad search response");
+  return value;
+}
+
+function fmtSig3(n) {
+  if (!isFinite(n)) return "-";
+  if (n < 1000) return String(Math.round(n));
+
+  const units = [
+    { v: 1e12, s: "t" },
+    { v: 1e9, s: "b" },
+    { v: 1e6, s: "m" },
+    { v: 1e3, s: "k" },
+  ];
+
+  for (const u of units) {
+    if (n >= u.v) {
+      const x = n / u.v;
+      let str;
+      if (x >= 100) {
+        str = String(Math.round(x));
+      } else if (x >= 10) {
+        str = x.toFixed(1).replace(/\.0$/, "");
+      } else {
+        str = x.toFixed(2).replace(/\.?0+$/, "");
+      }
+      return str + u.s;
+    }
+  }
+
+  return String(n);
+}
+
+function addMetric(widget, bigValue, label) {
+  const valueText = widget.addText(bigValue);
+  valueText.font = Font.boldRoundedSystemFont(30);
+  valueText.minimumScaleFactor = 0.5;
+  valueText.lineLimit = 1;
+  valueText.textColor = Color.white();
+
+  const labelText = widget.addText(label);
+  labelText.font = Font.systemFont(10);
+  labelText.textColor = new Color("#94a3b8");
+}
+
+function smallWidget({ searchValue, rpcValue, error }) {
+  const w = new ListWidget();
+
+  const grad = new LinearGradient();
+  grad.locations = [0, 1];
+  grad.colors = [new Color("#0b1220"), new Color("#1e293b")];
+  w.backgroundGradient = grad;
+  w.setPadding(12, 12, 12, 12);
+
+  const title = w.addText("stupid");
+  title.font = Font.semiboldSystemFont(12);
+  title.textColor = new Color("#93c5fd");
+
+  w.addSpacer(6);
+
+  if (error && searchValue == null && rpcValue == null) {
+    const t = w.addText("Error");
+    t.font = Font.semiboldSystemFont(16);
+    t.textColor = new Color("#fca5a5");
+
+    const d = w.addText(String(error));
+    d.font = Font.systemFont(9);
+    d.textColor = new Color("#fecaca");
+    d.lineLimit = 2;
+  } else {
+    addMetric(w, searchValue != null ? fmtSig3(searchValue) : "-", "Search");
+    w.addSpacer(6);
+    addMetric(w, rpcValue != null ? fmtSig3(rpcValue) : "-", "RPC");
+
+    if (error) {
+      w.addSpacer(4);
+      const partial = w.addText("partial update");
+      partial.font = Font.systemFont(8);
+      partial.textColor = new Color("#fca5a5");
+    }
+  }
+
+  w.url = SEARCH_STATS_URL;
+  w.refreshAfterDate = new Date(Date.now() + REFRESH_MINUTES * 60 * 1000);
+  return w;
+}
+
+function settle(promise) {
+  return promise
+    .then((value) => ({ ok: true, value }))
+    .catch((reason) => ({ ok: false, reason }));
+}
+
+let widget;
+try {
+  const results = await Promise.all([
+    settle(fetchSearchQueriesServed()),
+    settle(fetchEvmRequestsServed()),
+  ]);
+
+  const search = results[0];
+  const rpc = results[1];
+
+  const searchValue = search.ok ? search.value : null;
+  const rpcValue = rpc.ok ? rpc.value : null;
+
+  const errors = [];
+  if (!search.ok) errors.push(search.reason?.message || "Search failed");
+  if (!rpc.ok) errors.push(rpc.reason?.message || "RPC failed");
+
+  widget = smallWidget({
+    searchValue,
+    rpcValue,
+    error: errors.length ? errors.join(" | ") : null,
+  });
+} catch (e) {
+  widget = smallWidget({ error: e.message || "Unknown" });
+}
+
+if (config.runsInWidget) {
+  Script.setWidget(widget);
+} else {
+  await widget.presentSmall();
+}
+Script.complete();
