@@ -6,6 +6,7 @@ final class AssistantSettings: ObservableObject {
   static let shared = AssistantSettings()
 
   static let storageKey = "net.stupidtech.stupidwidgets.assistantInstructions"
+  static let iCloudKey = "assistantInstructions"
 
   static let defaultValue = """
     Style every widget like the built-in Hello Widget sample unless the user explicitly asks for a different look:
@@ -24,21 +25,48 @@ final class AssistantSettings: ObservableObject {
     """
 
   static func current() -> String {
-    UserDefaults.standard.string(forKey: storageKey) ?? defaultValue
+    UserDefaults.standard.string(forKey: storageKey)
+      ?? NSUbiquitousKeyValueStore.default.string(forKey: iCloudKey)
+      ?? defaultValue
   }
 
   @Published var instructions: String {
     didSet {
-      UserDefaults.standard.set(instructions, forKey: Self.storageKey)
+      persist()
     }
   }
 
+  private var externalChangeObserver: NSObjectProtocol?
+
   private init() {
     instructions =
-      UserDefaults.standard.string(forKey: Self.storageKey) ?? Self.defaultValue
+      NSUbiquitousKeyValueStore.default.string(forKey: Self.iCloudKey)
+      ?? UserDefaults.standard.string(forKey: Self.storageKey)
+      ?? Self.defaultValue
+    NSUbiquitousKeyValueStore.default.synchronize()
+    externalChangeObserver = NotificationCenter.default.addObserver(
+      forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+      object: NSUbiquitousKeyValueStore.default,
+      queue: .main
+    ) { [weak self] _ in
+      Task { @MainActor in
+        guard let self else { return }
+        if let updated = NSUbiquitousKeyValueStore.default.string(forKey: Self.iCloudKey),
+          updated != self.instructions
+        {
+          self.instructions = updated
+        }
+      }
+    }
   }
 
   func reset() {
     instructions = Self.defaultValue
+  }
+
+  private func persist() {
+    UserDefaults.standard.set(instructions, forKey: Self.storageKey)
+    NSUbiquitousKeyValueStore.default.set(instructions, forKey: Self.iCloudKey)
+    NSUbiquitousKeyValueStore.default.synchronize()
   }
 }

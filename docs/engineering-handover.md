@@ -256,10 +256,14 @@ Responses tool loop:
   another widget) so it can reuse established widget styles. It is told to inspect other widgets but
   only edit the one being edited.
 - The script list gains a **Settings** gear (top right) opening a sheet that manages the ChatGPT
-  connection (Connect/Sign Out) and a persisted **Coding Assistant Instructions** text area. The
-  instructions default to a Hello Widget style guide (navy `#1b1b2f` + `#16222A → #3A6073` gradient,
-  white bold 16 pt title, medium 13 pt date at 0.85 opacity, `addSpacer(8)`, vertical layout) and are
-  injected into every assistant conversation via `AssistantSettings.current()`.
+  connection and persisted **Coding Assistant Instructions**. The ChatGPT row shows the account email
+  (extracted from the access-token/id-token JWT `https://api.openai.com/profile.email` claim — no
+  extra API call) with a Sign Out button on its own row below. Instructions default to a Hello Widget
+  style guide (navy `#1b1b2f` + `#16222A → #3A6073` gradient, white bold 16 pt title, medium 13 pt
+  date at 0.85 opacity, `addSpacer(8)`, vertical layout), are edited in a pushed full-screen editor
+  (Reset in the top-right toolbar), are injected into every assistant conversation via
+  `AssistantSettings.current()`, and sync through `NSUbiquitousKeyValueStore` (iCloud) alongside
+  UserDefaults.
 - Tool calls are accumulated by Responses item ID, replayed with `function_call_output`, and may run
   for up to one hundred provider turns. Encrypted reasoning continuation data is preserved with
   `store: false`.

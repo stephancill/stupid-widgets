@@ -854,44 +854,40 @@ struct SettingsSheet: View {
       Form {
         Section("ChatGPT") {
           HStack {
-            Label(
-              "ChatGPT",
-              systemImage: auth.isSignedIn
-                ? "person.crop.circle.fill.badge.checkmark" : "person.crop.circle.badge.questionmark"
-            )
+            Text("ChatGPT")
             Spacer()
-            if auth.isSignedIn {
-              Button("Sign Out", role: .destructive) {
-                auth.signOut()
-              }
-            } else {
-              Button(auth.isSigningIn ? "Signing In…" : "Connect") {
-                auth.signIn()
-              }
-              .disabled(auth.isSigningIn)
+            if let email = auth.credential?.email {
+              Text(email)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
             }
+          }
+          if auth.isSignedIn {
+            Button("Sign Out") {
+              auth.signOut()
+            }
+          } else {
+            Button(auth.isSigningIn ? "Signing In…" : "Connect") {
+              auth.signIn()
+            }
+            .disabled(auth.isSigningIn)
           }
           if let error = auth.errorMessage {
             Text(error)
               .font(.caption)
-              .foregroundStyle(.red)
+              .foregroundStyle(.secondary)
           }
         }
         Section {
-          TextEditor(text: $settings.instructions)
-            .font(.system(size: 13, design: .monospaced))
-            .frame(minHeight: 240)
-        } header: {
-          Text("Coding Assistant Instructions")
+          NavigationLink {
+            AssistantInstructionsEditorView(settings: settings)
+          } label: {
+            Text("Coding Assistant Instructions")
+          }
         } footer: {
           Text(
-            "These instructions are injected into every conversation with the coding assistant. The default keeps new widgets styled like the Hello Widget sample."
+            "These instructions are injected into every conversation with the coding assistant and sync across your devices with iCloud."
           )
-        }
-        Section {
-          Button("Reset to Hello Widget Style") {
-            settings.reset()
-          }
         }
       }
       .navigationTitle("Settings")
@@ -904,5 +900,26 @@ struct SettingsSheet: View {
         }
       }
     }
+  }
+}
+
+struct AssistantInstructionsEditorView: View {
+  @ObservedObject var settings: AssistantSettings
+
+  var body: some View {
+    TextEditor(text: $settings.instructions)
+      .font(.body)
+      .scrollContentBackground(.hidden)
+      .padding(8)
+      .background(Color(uiColor: .secondarySystemBackground))
+      .navigationTitle("Coding Assistant Instructions")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          Button("Reset") {
+            settings.reset()
+          }
+        }
+      }
   }
 }

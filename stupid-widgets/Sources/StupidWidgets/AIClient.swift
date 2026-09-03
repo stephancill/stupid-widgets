@@ -16,6 +16,7 @@ struct OpenAICredential: Codable {
   var refreshToken: String
   var expiresAt: Date
   var accountID: String?
+  var email: String?
 }
 
 enum AIClientError: LocalizedError {
@@ -338,22 +339,35 @@ final class OpenAIAuth: ObservableObject {
       accessToken: response.accessToken,
       refreshToken: response.refreshToken ?? fallbackRefreshToken,
       expiresAt: Date().addingTimeInterval(response.expiresIn ?? 3600),
-      accountID: accountID(from: response.idToken) ?? accountID(from: response.accessToken)
+      accountID: accountID(from: response.idToken) ?? accountID(from: response.accessToken),
+      email: email(from: response.idToken) ?? email(from: response.accessToken)
     )
   }
 
-  private func accountID(from token: String?) -> String? {
-    guard let token, token.split(separator: ".").count > 1 else { return nil }
-    var payload = String(token.split(separator: ".")[1]).replacingOccurrences(
-      of: "-", with: "+"
-    ).replacingOccurrences(of: "_", with: "/")
-    payload += String(repeating: "=", count: (4 - payload.count % 4) % 4)
-    guard let data = Data(base64Encoded: payload),
+  private func jwtClaims(from token: String?) -> [String: Any]? {
+    guard let token, let payload = token.split(separator: ".").dropFirst().first else {
+      return nil
+    }
+    var decoded = String(payload).replacingOccurrences(of: "-", with: "+")
+      .replacingOccurrences(of: "_", with: "/")
+    decoded += String(repeating: "=", count: (4 - decoded.count % 4) % 4)
+    guard let data = Data(base64Encoded: decoded),
       let claims = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     else { return nil }
+    return claims
+  }
+
+  private func accountID(from token: String?) -> String? {
+    guard let claims = jwtClaims(from: token) else { return nil }
     return claims["chatgpt_account_id"] as? String
       ?? claims["https://api.openai.com/auth.chatgpt_account_id"] as? String
       ?? (claims["organizations"] as? [[String: Any]])?.first?["id"] as? String
+  }
+
+  private func email(from token: String?) -> String? {
+    guard let claims = jwtClaims(from: token) else { return nil }
+    if let email = claims["email"] as? String, !email.isEmpty { return email }
+    return (claims["https://api.openai.com/profile"] as? [String: Any])?["email"] as? String
   }
 
   private func save(_ value: OpenAICredential) throws {
@@ -404,7 +418,11 @@ final class OpenAIAuth: ObservableObject {
         throw AIClientError.keychain(status)
       }
     #endif
-    return try JSONDecoder().decode(OpenAICredential.self, from: data)
+    var value = try JSONDecoder().decode(OpenAICredential.self, from: data)
+    if value.email == nil, let derived = email(from: value.accessToken) {
+      value.email = derived
+    }
+    return value
   }
 
   private func decode<T: Decodable>(_ request: URLRequest) async throws -> T {

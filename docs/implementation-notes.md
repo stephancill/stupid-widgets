@@ -1,5 +1,32 @@
 # Implementation Notes
 
+## 2026-09-03 — Settings polish: account email, chevron editor, iCloud instructions
+
+- **ChatGPT row simplified**: the settings section now shows a plain `ChatGPT` row (no leading
+  icon, no tinting) with the account **email right-aligned** and a **Sign Out button on its own row
+  below**; signed-out state keeps a plain Connect button. Auth errors render as a neutral caption.
+- **Account email source**: no extra API call needed — the ChatGPT access-token JWT already carries
+  `https://api.openai.com/profile.email` (plus `email` on the id-token). `OpenAICredential` gains an
+  `email` field; `AIClient` extracts it at sign-in/refresh, and `loadCredential()` backfills it from
+  the stored access token so existing sessions show the email without re-auth (e.g. the simulated
+  session resolved `stephan@stephancill.co.za` from the stored token). Token/claim decode was
+  refactored into a shared `jwtClaims(from:)` helper.
+- **Coding Assistant Instructions row**: the settings sheet now has a `NavigationLink` row with the
+  automatic trailing chevron that pushes a dedicated editor (`AssistantInstructionsEditorView`)
+  instead of an inline `TextEditor`. The editor uses `.font(.body)` (not monospaced), and the
+  **Reset button moved to the top-right toolbar** of the editor screen.
+- **iCloud sync**: instructions are stored in `NSUbiquitousKeyValueStore` (key `assistantInstructions`)
+  in addition to UserDefaults; `AssistantSettings` loads iCloud-first, observes external
+  `didChangeExternallyNotification` changes, and persists both stores on every edit so the style guide
+  follows the user's devices. Verified in-app: edit persisted to UserDefaults, Reset restored the
+  default and cleared the test marker, and the app kept running (the ubiquitous store write did not
+  crash the stripped-entitlement simulator build).
+- Not installed to the iPhone per request — verified on the `NoFeed 6.5 iPh11PM` simulator only
+  (with the documented stripped-entitlement launch workaround), reusing the simulator's stored ChatGPT
+  credential.
+
+---
+
 ## 2026-09-03 — Settings, widget-library tools, in-memory chat history, message rewind
 
 - Added a **Settings** gear button to the script list's top-right toolbar
